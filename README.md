@@ -22,16 +22,27 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
 
 > Aide à la conception. Ne remplace ni l’attestation du Consuel ni les notices des fabricants. Les modules sont des illustrations.
 
+- **Manipulation** : toucher un module ouvre une barre Régler / Dupliquer / Supprimer. On peut aussi glisser un module vers la corbeille. Un module lâché entre deux autres s'insère et décale la rangée.
+
 ## Utiliser
 
-Ouvrir `index.html` dans un navigateur. Aucune installation, aucun serveur. Le projet est enregistré dans le navigateur.
+Ouvrir `index.html` dans un navigateur, avec `regles.js` à côté. Aucune installation, aucun serveur. Le projet est enregistré dans le navigateur.
 
-## Développer
+Pour avoir un lien public : dans GitHub, Settings → Pages → *Deploy from a branch* → `main` / `/ (root)`. Le site est alors servi sur `https://nodyxstudio.github.io/tableau-electrique/`.
 
-Le code source est dans `app.html` (HTML, CSS et JavaScript sans dépendance). Après modification :
+## Organisation
+
+| Fichier | Rôle |
+|---|---|
+| `regles.js` | Règles NF C 15-100 : données (sections, calibres, limites), calculs, rangement automatique, vérification. Pas de DOM. |
+| `app.html` | Interface : dessin du tableau, glisser-déposer, panneaux. |
+| `tests/regles.test.js` | Tests des règles (Node 18+). |
+| `build.sh` | Génère `index.html` (page autonome) à partir de `app.html`. |
+
+```bash
+npm test
+```
 
 ```bash
 ./build.sh
 ```
-
-Le script régénère `index.html`, la page autonome publiable telle quelle (par exemple sur GitHub Pages).
