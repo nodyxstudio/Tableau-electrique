@@ -1,0 +1,946 @@
+<title>Tableau Malin</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout : palette d'appareils à gauche · coffret électrique dessiné au centre · contrôle Consuel à droite */
+:root{
+  --bg:#e9eae5; --surface:#ffffff; --surface-2:#f4f5f1; --ink:#1c2024; --muted:#5b636b; --line:#d3d5ce;
+  --accent:#f0b000; --accent-ink:#1c2024; --accent-soft:#fff3c4;
+  --ok:#1d8a4b; --ok-soft:#dcf3e4; --warn:#b86e00; --warn-soft:#fdeccc; --err:#c4321c; --err-soft:#fbe0da;
+  --phase:#8a4b26; --neutre:#2463c4; --terre:#58a83a;
+  --coffret:#f7f7f4; --coffret-edge:#c5c7c0; --rail:#aeb3b9; --slot:#e3e5df; --strip:#fffef7;
+  /* aspect des modules : objets physiques, identiques dans les deux thèmes */
+  --m-body:#fbfbf9; --m-edge:#b9bcb5; --m-term:#e7e8e3; --m-screw:#9aa0a6; --m-face:#f2f3ef; --m-ink:#24282c; --m-sub:#6d747a; --m-red:#c8341e; --m-yellow:#f2c200;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141719; --surface:#1d2124; --surface-2:#252a2e; --ink:#e8e9e4; --muted:#9ba2a8; --line:#33393e;
+  --accent:#f5be1d; --accent-ink:#17191b; --accent-soft:#3a3110;
+  --ok:#4cc27c; --ok-soft:#173826; --warn:#e8a33a; --warn-soft:#3b2c12; --err:#f0705a; --err-soft:#43201a;
+  --phase:#c07a4c; --neutre:#5b95ea; --terre:#7cc95c;
+  --coffret:#2b3034; --coffret-edge:#454c52; --rail:#6c737a; --slot:#353b40; --strip:#30363a;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141719; --surface:#1d2124; --surface-2:#252a2e; --ink:#e8e9e4; --muted:#9ba2a8; --line:#33393e;
+  --accent:#f5be1d; --accent-ink:#17191b; --accent-soft:#3a3110;
+  --ok:#4cc27c; --ok-soft:#173826; --warn:#e8a33a; --warn-soft:#3b2c12; --err:#f0705a; --err-soft:#43201a;
+  --phase:#c07a4c; --neutre:#5b95ea; --terre:#7cc95c;
+  --coffret:#2b3034; --coffret-edge:#454c52; --rail:#6c737a; --slot:#353b40; --strip:#30363a;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:none}
+.brand h1{font-family:var(--f-display);font-size:24px;letter-spacing:.01em;margin:0;line-height:1}
+.brand small{display:block;color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0}
+.tab{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 14px;cursor:pointer;font-weight:600;font-size:14px}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab.add{border-style:dashed;background:transparent;color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--err);border-color:var(--err)}
+.btn.small{padding:5px 9px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:default}
+
+.app{display:grid;grid-template-columns:250px minmax(0,1fr) 370px;gap:16px;align-items:start;padding-block:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.palette{padding:12px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.palette details{border-bottom:1px solid var(--line);padding-block:6px}
+.palette details:last-child{border-bottom:0}
+.palette summary{font-family:var(--f-display);font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;padding:4px 0;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-block:8px}
+.tile{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:8px 6px;text-align:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.tile:hover{border-color:var(--accent);background:var(--accent-soft)}
+.tile .ic{font-size:26px;line-height:1.1}
+.tile svg{height:58px;width:auto}
+.tile b{font-size:13px;line-height:1.15;font-weight:600}
+.tile span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.hint{font-size:13px;color:var(--muted)}
+
+.stage{min-width:0;display:flex;flex-direction:column;gap:12px}
+.boardbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px}
+.boardbar label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);font-weight:600}
+.boardbar input[type=text]{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:5px 8px;width:170px;color:var(--ink);font-weight:600}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stepper button{border:0;background:var(--surface-2);width:28px;height:28px;cursor:pointer;font-weight:700}
+.stepper output{min-width:26px;text-align:center;font-family:var(--f-mono);color:var(--ink)}
+.boardbar select,.field select,.field input{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:5px 8px;color:var(--ink)}
+.boardwrap{padding:10px;overflow:auto}
+#bsvg{display:block;width:100%;margin:0 auto;user-select:none;-webkit-user-select:none}
+#bsvg .mod{cursor:grab;touch-action:none}
+#bsvg .mod.dim{opacity:.25}
+#bsvg .wh{cursor:crosshair;touch-action:none}
+#bsvg .wh circle.hit{fill:transparent}
+#bsvg .wh:hover .ring{stroke:var(--accent);stroke-width:3}
+.pop{animation:pop .35s ease-out}
+@keyframes pop{0%{transform:scale(.6);opacity:.4}100%{transform:scale(1);opacity:1}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);padding:0 4px}
+.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
+
+.panel{position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden}
+.score{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
+.score .big{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-size:24px;font-weight:700;flex:none}
+.score.ok .big{background:var(--ok-soft);color:var(--ok)}
+.score.warn .big{background:var(--warn-soft);color:var(--warn)}
+.score.err .big{background:var(--err-soft);color:var(--err)}
+.score h2{margin:0;font-family:var(--f-display);font-size:21px;line-height:1.1}
+.score p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.ptabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto}
+.ptab{flex:1;border:0;background:none;padding:10px 6px;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+.ptab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.pbody{padding:14px 16px;overflow:auto;flex:1;min-height:0}
+.pbody h3{font-family:var(--f-display);font-size:18px;margin:14px 0 8px;letter-spacing:.01em}
+.pbody h3:first-child{margin-top:0}
+.field{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:8px;align-items:center;margin-bottom:9px;font-size:14px}
+.field>span{color:var(--muted);font-weight:600}
+.field select,.field input{width:100%;min-width:0}
+.field .note{grid-column:1/-1;font-size:12.5px;color:var(--muted);margin-top:-4px}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.issue{border-radius:8px;padding:9px 11px;margin-bottom:8px;font-size:14px;border-left:4px solid;cursor:pointer;background:var(--surface-2)}
+.issue.err{border-color:var(--err)} .issue.warn{border-color:var(--warn)} .issue.ok{border-color:var(--ok)} .issue.info{border-color:var(--neutre)}
+.issue .lvl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.issue.err .lvl{color:var(--err)} .issue.warn .lvl{color:var(--warn)} .issue.ok .lvl{color:var(--ok)}
+.issue .why{display:none;color:var(--muted);font-size:13px;margin-top:4px}
+.issue.open .why{display:block}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.kpi{background:var(--surface-2);border-radius:8px;padding:9px 11px}
+.kpi small{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.kpi b{font-family:var(--f-mono);font-size:19px;font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--slot);border-radius:4px;overflow:hidden;margin:4px 0 2px}
+.bar i{display:block;height:100%;border-radius:4px}
+.loadrow{font-size:13px;margin-bottom:9px}
+.loadrow .l{display:flex;justify-content:space-between;gap:8px}
+.loadrow .l span:last-child{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.callout{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:13.5px;margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 5px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td input{width:56px;border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:3px 5px;color:var(--ink)}
+.buy{color:var(--err);font-weight:700}
+.got{color:var(--ok);font-weight:700}
+.tablewrap{overflow-x:auto}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+ul.rules{padding-left:18px;margin:6px 0;font-size:13.5px}
+ul.rules li{margin-bottom:5px}
+
+.ghost{position:fixed;left:0;top:0;pointer-events:none;z-index:50;filter:drop-shadow(0 8px 14px rgba(0,0,0,.28));transform-origin:center}
+.ghost .gl{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;background:var(--ink);color:var(--bg);font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-weight:600;font-size:14px;z-index:60;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)}
+.toast button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(10,12,14,.55);z-index:70;display:grid;place-items:center;padding:16px}
+.modal .box{background:var(--surface);border-radius:14px;max-width:620px;width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:20px}
+.modal h2{font-family:var(--f-display);font-size:26px;margin:0 0 4px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
+.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;margin:8px 0 12px;font-size:14px}
+.checks label{display:flex;gap:7px;align-items:center}
+textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:8px;font-family:var(--f-mono);font-size:12px;color:var(--ink)}
+.foot{font-size:12px;color:var(--muted);padding-block:4px 20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+@media (max-width:1240px){.app{grid-template-columns:230px minmax(0,1fr)}.panel{grid-column:1/-1;position:static;max-height:none}}
+@media (max-width:760px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .palette{position:static;max-height:none}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+  .grid2,.checks{grid-template-columns:minmax(0,1fr)}
+  .boardbar input[type=text]{width:130px}
+}
+@media (prefers-reduced-motion:reduce){.pop{animation:none}}
+</style>
+
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"><svg width="20" height="22" viewBox="0 0 20 22"><path d="M12 0 2 13h6l-2 9 10-13h-6z" fill="#1c2024"/></svg></div>
+    <div><h1>Tableau Malin</h1><small>NF C 15-100 · résidentiel</small></div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="Tableaux"></nav>
+  <div class="actions">
+    <button class="btn primary" id="bGen" type="button">Créer depuis mon logement</button>
+    <button class="btn" id="bOpt" type="button" title="Range et répartit les circuits selon les règles">Ranger tout seul</button>
+    <button class="btn" id="bUndo" type="button" title="Annuler (Ctrl+Z)">Annuler</button>
+    <button class="btn" id="bIO" type="button">Sauver / charger</button>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="card palette" id="palette" aria-label="Matériel à glisser"></aside>
+  <section class="stage">
+    <div class="card boardbar" id="boardbar"></div>
+    <div class="card boardwrap" id="boardwrap"></div>
+    <div class="legend">
+      <span><i style="background:var(--phase)"></i>Phase</span>
+      <span><i style="background:var(--neutre)"></i>Neutre</span>
+      <span><i style="background:repeating-linear-gradient(90deg,var(--terre) 0 5px,var(--m-yellow) 5px 10px)"></i>Terre</span>
+      <span>Glisse un module hors du tableau pour le retirer. Tire le petit rond au-dessus d’un disjoncteur jusqu’à un différentiel pour le câbler.</span>
+    </div>
+  </section>
+  <aside class="card panel" id="panel">
+    <div class="score" id="score"></div>
+    <div class="ptabs" role="tablist" id="ptabs"></div>
+    <div class="pbody" id="pbody"></div>
+  </aside>
+</main>
+<p class="foot">Tableau Malin aide à concevoir un tableau conforme à la NF C 15-100 (logement). Il ne remplace pas l’attestation du Consuel ni la notice des fabricants. Les modules sont des illustrations, pas des photos de produits.</p>
+<div id="layer"></div>
+
+<script>
+"use strict";
+/* ================= Données de référence ================= */
+const MOD=36, MOD_H=150, ROW_H=330, LEFT=44, TOP=84, MOD_Y=52;
+const W={disj:1,id:2,para:2,cont:1,tl:1,sect:2,prise:3};
+const MAXCAL={1.5:16,2.5:20,4:25,6:32,10:50,16:63};
+const SECS=[1.5,2.5,4,6,10,16];
+const CALS=[2,10,16,20,25,32,40,50,63];
+const PTABLE=[[10,1.5,2250],[16,1.5,3500],[20,2.5,4500],[25,4,5750],[32,6,7250],[40,10,9200]];
+const DIVTABLE=[[32,6],[40,10],[63,16]];
+const KVA=[3,6,9,12,15,18];
+const CIRC={
+  eclairage:{n:'Éclairage',ic:'💡',sec:1.5,cal:16,cnt:'points lumineux',max:{1.5:8,2.5:8},p:500,ks:.7,lim:'8 points lumineux max'},
+  prises:{n:'Prises 16 A',ic:'🔌',sec:2.5,cal:20,cnt:'socles',max:{1.5:5,2.5:12},p:2500,ks:.3,lim:'5 socles (1,5 mm²/16 A) · 12 socles (2,5 mm²/20 A)'},
+  cuisine:{n:'Prises plan de travail',ic:'🥣',sec:2.5,cal:20,cnt:'socles',max:{2.5:6,4:6,6:6},p:3000,ks:.4,lim:'6 socles max, circuit dédié à la cuisine'},
+  plaque:{n:'Plaque de cuisson',ic:'🍳',sec:6,cal:32,p:7200,ks:.6,A:true,lim:'1 appareil · différentiel type A'},
+  four:{n:'Four',ic:'🥖',sec:2.5,cal:20,p:3000,ks:.6,lim:'1 appareil'},
+  ll:{n:'Lave-linge',ic:'👕',sec:2.5,cal:20,p:2500,ks:.6,A:true,lim:'1 appareil · différentiel type A'},
+  lv:{n:'Lave-vaisselle',ic:'🍽️',sec:2.5,cal:20,p:2300,ks:.6,lim:'1 appareil'},
+  sl:{n:'Sèche-linge',ic:'🌀',sec:2.5,cal:20,p:2800,ks:.6,lim:'1 appareil'},
+  congel:{n:'Congélateur',ic:'🧊',sec:2.5,cal:20,p:300,ks:1,lim:'1 appareil (conseillé)'},
+  ce:{n:'Chauffe-eau',ic:'🚿',sec:2.5,cal:20,p:3000,ks:1,lim:'1 appareil · contacteur si heures creuses'},
+  chauffage:{n:'Chauffage',ic:'♨️',ptab:true,sec:1.5,cal:16,p:3000,ks:1,lim:'selon la puissance (≤ 3 500 W en 1,5 mm²/16 A)'},
+  clim:{n:'Climatisation',ic:'❄️',ptab:true,sec:1.5,cal:16,p:1200,ks:1,recA:true,lim:'selon la puissance électrique absorbée'},
+  pac:{n:'Pompe à chaleur',ic:'🌡️',ptab:true,sec:2.5,cal:20,p:3500,ks:1,recA:true,lim:'selon la puissance électrique absorbée'},
+  vmc:{n:'VMC',ic:'🌬️',sec:1.5,cal:2,p:60,ks:1,lim:'disjoncteur 2 A dédié'},
+  volets:{n:'Volets roulants',ic:'🪟',sec:1.5,cal:16,p:600,ks:.3,lim:'circuit dédié conseillé'},
+  irve:{n:'Borne de recharge 7,4 kW',ic:'🚗',sec:10,cal:40,p:7400,ks:1,irve:true,lim:'différentiel 30 mA type A ou F à elle seule'},
+  prv:{n:'Prise renforcée VE',ic:'🔋',sec:2.5,cal:20,p:3700,ks:1,irve:true,lim:'différentiel 30 mA type A ou F à elle seule'},
+  ext:{n:'Extérieur / portail',ic:'🌳',sec:2.5,cal:20,p:1000,ks:.3,lim:'prises et éclairage extérieurs'},
+  com:{n:'Tableau de communication',ic:'📡',sec:1.5,cal:16,p:100,ks:1,lim:'circuit dédié (box, réseau)'},
+  autre:{n:'Autre circuit',ic:'⚡',sec:2.5,cal:20,p:1000,ks:.5,lim:'à préciser'},
+  div:{n:'Départ tableau divisionnaire',ic:'🗄️',sec:10,cal:40,p:0,ks:1,lim:'section selon le calibre du départ'}
+};
+const BR={
+  generic:{name:'Générique',gD:'',gI:'',gC:'',short:'',lever:'#2d3238',stripe:null},
+  schneider:{name:'Schneider Electric',gD:'Resi9 XE',gI:'Resi9 XE',gC:'Resi9',short:'Resi9',lever:'#22302a',stripe:'#3a9a5b'},
+  legrand:{name:'Legrand',gD:'DX³',gI:'DX³-ID',gC:'Drivia',short:'DX³',lever:'#454c5a',stripe:'#98a1b0'}
+};
+const KEY='tableau-malin-v1';
+const SIMUL=0.7; // simultanéité globale du logement pour l'abonnement
+
+/* ================= Outils ================= */
+const $=(s,el=document)=>el.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>String(n).replace('.',',');
+const kw=w=>(w/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' kW';
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+/* ================= Projet ================= */
+function newBoard(name,kind){return{id:uid(),name,kind,rows:2,mpr:13,items:[]}}
+function mkCirc(k,o={}){const sp=CIRC[k];const c={k,label:o.label??sp.n,room:o.room||'',n:o.n||0,p:o.p??sp.p,sec:sp.sec,cal:sp.cal};
+  if(sp.ptab){Object.assign(c,recommend(c))}
+  return{id:uid(),t:'disj',row:0,col:0,c,feed:null}}
+function mkItem(t,o={}){const it={id:uid(),t,row:0,col:0,feed:null};if(t==='id'){it.cal=o.cal||40;it.type=o.type||'AC'}return it}
+
+const DEFAULT_HOME={name:'Maison exemple',surf:90,ch:3,sdb:1,tarif:'hc',chauf:0,plaque:true,four:true,ll:true,lv:true,sl:false,congel:true,ce:true,climN:1,climW:900,ve:'prv',vmc:true,volets:true,ext:true,foudre:false,div:false,brand:'schneider'};
+
+function pack(list,max){const out=[];let cur=null;for(const [room,n] of list){if(!n)continue;if(!cur||cur.n+n>max){cur={rooms:[],n:0};out.push(cur)}cur.rooms.push(room);cur.n+=n}return out}
+function generate(h){
+  const P={v:1,name:h.name||'Mon logement',surf:+h.surf||90,tarif:h.tarif||'base',kva:9,foudre:!!h.foudre,brand:h.brand||'schneider',stock:{},boards:[],cur:null,home:clone(h)};
+  const B=newBoard('Tableau principal','principal');P.boards.push(B);P.cur=B.id;
+  const ch=Math.max(0,+h.ch||0), sdb=Math.max(0,+h.sdb||0), add=it=>B.items.push(it);
+  const lum=[['séjour',3],['cuisine',2],['entrée',2],['WC',1]];
+  for(let i=1;i<=ch;i++)lum.push([`ch.${i}`,1]);
+  for(let i=1;i<=sdb;i++)lum.push([sdb>1?`SdB ${i}`:'SdB',2]);
+  if(h.ext)lum.push(['ext.',2]);
+  pack(lum,7).forEach(g=>add(mkCirc('eclairage',{label:'Écl. '+g.rooms.join(', '),n:g.n,p:Math.max(300,g.n*80)})));
+  const pc=[['séjour',5+Math.floor((+h.surf||90)/40)],['entrée',1]];
+  for(let i=1;i<=ch;i++)pc.push([`ch.${i}`,3]);
+  for(let i=1;i<=sdb;i++)pc.push([sdb>1?`SdB ${i}`:'SdB',1]);
+  pc.push(['couloir',1]);
+  pack(pc,10).forEach(g=>add(mkCirc('prises',{label:'PC '+g.rooms.join(', '),n:g.n})));
+  add(mkCirc('cuisine',{label:'PC plan de travail',n:6,room:'cuisine'}));
+  [['plaque','Plaque'],['four','Four'],['ll','Lave-linge'],['lv','Lave-vaisselle'],['sl','Sèche-linge'],['congel','Congélateur'],['ce','Chauffe-eau']].forEach(([k,l])=>{if(h[k])add(mkCirc(k,{label:l}))});
+  if(+h.chauf>0){const n=Math.ceil(+h.chauf/3500);for(let i=0;i<n;i++)add(mkCirc('chauffage',{label:`Chauffage ${i+1}`,p:Math.round(+h.chauf/n)}))}
+  for(let i=0;i<(+h.climN||0);i++)add(mkCirc('clim',{label:`Clim ${i+1}`,p:+h.climW||1200}));
+  if(h.pac)add(mkCirc('pac',{label:'Pompe à chaleur',p:+h.pacW||3500}));
+  if(h.ve==='irve')add(mkCirc('irve',{label:'Borne VE'}));
+  if(h.ve==='prv')add(mkCirc('prv',{label:'Prise VE'}));
+  if(h.vmc)add(mkCirc('vmc',{label:'VMC'}));
+  if(h.volets)add(mkCirc('volets',{label:'Volets'}));
+  if(h.ext)add(mkCirc('ext',{label:'Extérieur'}));
+  add(mkCirc('com',{label:'Coffret com.'}));
+  if(h.ce&&P.tarif==='hc')add(mkItem('cont'));
+  if(h.foudre)add(mkItem('para'));
+  if(h.div){
+    const D=newBoard('Garage','div');P.boards.push(D);
+    D.items.push(mkItem('sect'),mkCirc('eclairage',{label:'Écl. garage',n:3,p:300}),mkCirc('prises',{label:'PC garage',n:4}),mkCirc('prises',{label:'PC atelier',n:3}));
+    const f=mkCirc('div',{label:'Départ garage'});f.c.board=D.id;B.items.push(f);
+    optimise(P,D);Object.assign(f.c,recommend(f.c,P));
+  }
+  optimise(P,B);
+  P.kva=suggestKva(P);
+  return P;
+}
+
+/* ================= Calculs ================= */
+function boardOf(P,id){return P.boards.find(b=>b.id===id)}
+function loadOf(P,it,seen){
+  if(it.t!=='disj')return 0;
+  if(it.c.k==='div'){const b=boardOf(P,it.c.board);return b?boardLoad(P,b,seen):0}
+  return (+it.c.p||0)*(CIRC[it.c.k]||CIRC.autre).ks;
+}
+function boardLoad(P,b,seen=new Set()){if(seen.has(b.id))return 0;seen.add(b.id);return b.items.reduce((a,i)=>a+loadOf(P,i,seen),0)}
+function installed(P){let s=0;P.boards.forEach(b=>b.items.forEach(i=>{if(i.t==='disj'&&i.c.k!=='div')s+=+i.c.p||0}));return s}
+function principal(P){return P.boards.find(b=>b.kind==='principal')||P.boards[0]}
+function demand(P){return boardLoad(P,principal(P))*SIMUL}
+function suggestKva(P){const w=demand(P);return KVA.find(k=>k*1000>=w)||18}
+function recommend(c,P){
+  const sp=CIRC[c.k];
+  if(sp.ptab){const r=PTABLE.find(r=>r[2]>=(+c.p||0))||PTABLE[PTABLE.length-1];return{cal:r[0],sec:r[1]}}
+  if(c.k==='div'){const b=P&&boardOf(P,c.board);const I=b?boardLoad(P,b)/230:0;const r=DIVTABLE.find(r=>r[0]>=I*1.1)||DIVTABLE[2];return{cal:r[0],sec:r[1]}}
+  if(c.k==='prises'&&(+c.n||0)<=5&&c.sec===1.5)return{cal:16,sec:1.5};
+  if(c.k==='eclairage')return{cal:c.cal===10?10:16,sec:1.5};
+  return{cal:sp.cal,sec:sp.sec};
+}
+function feedMap(b){
+  const m={},ids=b.items.filter(i=>i.t==='id');
+  for(const it of b.items){
+    if(it.t==='id'||it.t==='sect'||it.t==='para'){m[it.id]={by:null,via:'head'};continue}
+    if(it.feed&&ids.some(d=>d.id===it.feed)){m[it.id]={by:it.feed,via:'fil'};continue}
+    let best=null;for(const d of ids)if(d.row===it.row&&d.col<it.col&&(!best||d.col>best.col))best=d;
+    m[it.id]=best?{by:best.id,via:'peigne'}:{by:null,via:'direct'};
+  }
+  return m;
+}
+function sortedIds(b){return b.items.filter(i=>i.t==='id').sort((a,c)=>a.row-c.row||a.col-c.col)}
+function idName(b,d){return 'Diff. '+(sortedIds(b).indexOf(d)+1)}
+function usedMods(b){return b.items.reduce((a,i)=>a+W[i.t],0)}
+function itemName(it){
+  if(it.t==='disj')return it.c.label||CIRC[it.c.k].n;
+  return{id:'Interrupteur différentiel',para:'Parafoudre',cont:'Contacteur heures creuses',tl:'Télérupteur',sect:'Interrupteur de tête',prise:'Prise modulaire'}[it.t];
+}
+
+/* ================= Rangement automatique ================= */
+function optimise(P,b){
+  const isP=b.kind==='principal';
+  const disj=b.items.filter(i=>i.t==='disj');
+  const feeds=disj.filter(i=>i.c.k==='div'), circ=disj.filter(i=>i.c.k!=='div');
+  const conts=b.items.filter(i=>i.t==='cont'), tls=b.items.filter(i=>i.t==='tl'), prises=b.items.filter(i=>i.t==='prise');
+  const head=[...b.items.filter(i=>i.t==='sect'),...b.items.filter(i=>i.t==='para')];
+  const L=i=>loadOf(P,i), sp=i=>CIRC[i.c.k];
+  const bins=[];const newBin=(type,cal)=>{const bn={id:mkItem('id',{type,cal}),list:[],load:0};bins.push(bn);return bn};
+  const put=(bn,i)=>{bn.list.push(i);bn.load+=L(i)};
+  const irve=circ.filter(i=>sp(i).irve), needA=circ.filter(i=>sp(i).A), recA=circ.filter(i=>sp(i).recA);
+  const rest=circ.filter(i=>!sp(i).irve&&!sp(i).A&&!sp(i).recA);
+  irve.forEach(i=>put(newBin('A',40),i));
+  const nA=isP?Math.max(1,Math.ceil(needA.length/8)):Math.ceil(needA.length/8);
+  const Abins=Array.from({length:nA},()=>newBin('A',40));
+  needA.forEach((i,k)=>put(Abins[k%nA],i));
+  const s=+P.surf||90;
+  const nAC=isP?(s<=35?1:s<=100?2:3):(rest.length||recA.length&&!nA?Math.max(1,Math.ceil(rest.length/8)):0);
+  const ACbins=Array.from({length:nAC},()=>newBin('AC',isP&&s<=35?25:40));
+  const general=[...Abins,...ACbins];
+  const pick=(c,l)=>{let best=null;for(const bn of c){if(bn.list.length>=8||bn.load+l>63*230)continue;if(!best||bn.load<best.load)best=bn}return best};
+  const place=(i,pref)=>{let bn=pick(pref,L(i))||pick(general,L(i));if(!bn){bn=newBin('AC',40);ACbins.push(bn);general.push(bn)}put(bn,i)};
+  recA.forEach(i=>place(i,Abins.length?Abins:general));
+  const rr=(list,off)=>list.forEach((i,k)=>{const pool=ACbins.length?ACbins:general;place(i,[pool[(k+off)%pool.length]])});
+  rr(rest.filter(i=>i.c.k==='eclairage'),0);
+  rr(rest.filter(i=>i.c.k==='prises'),1);
+  rest.filter(i=>i.c.k!=='eclairage'&&i.c.k!=='prises').sort((a,c)=>L(c)-L(a)).forEach(i=>place(i,general));
+  const order=Object.keys(CIRC);
+  let finalBins=bins.filter(bn=>bn.list.length||isP);
+  finalBins.forEach(bn=>{
+    bn.list.sort((a,c)=>order.indexOf(a.c.k)-order.indexOf(c.c.k));
+    const I=bn.load/230;bn.id.cal=bn.id.cal===25&&I<=25?25:I<=40?40:63;
+  });
+  conts.forEach(ct=>{const bn=finalBins.find(x=>x.list.some(i=>i.c.k==='ce'));if(bn){const k=bn.list.findIndex(i=>i.c.k==='ce');bn.list.splice(k+1,0,ct)}else if(finalBins[0])finalBins[0].list.push(ct)});
+  tls.forEach(t=>{const bn=finalBins.find(x=>x.list.some(i=>i.t==='disj'&&i.c.k==='eclairage'))||finalBins[0];if(bn)bn.list.push(t)});
+  const M=b.mpr;let row=0,col=0;
+  const at=it=>{const w=W[it.t];if(col+w>M){row++;col=0}it.row=row;it.col=col;col+=w};
+  head.forEach(i=>{i.feed=null;at(i)});
+  feeds.forEach(i=>{i.feed=null;at(i)});
+  if(!finalBins.length)prises.forEach(i=>{i.feed=null;at(i)});
+  finalBins.forEach((bn,bi)=>{
+    const grp=[bn.id,...bn.list];if(bi===finalBins.length-1)grp.push(...prises);
+    const w=grp.reduce((a,i)=>a+W[i.t],0);
+    if(col>0&&col+w>M){row++;col=0}
+    grp.forEach((it,k)=>{at(it);it.feed=(k>0&&it.row!==bn.id.row)?bn.id.id:null});
+  });
+  b.items=[...new Set([...head,...feeds,...finalBins.flatMap(bn=>[bn.id,...bn.list]),...prises])];
+  const used=col===0&&row>0?row:row+1;let rows=Math.max(1,used);
+  const um=usedMods(b);while((rows*M-um)/(rows*M)<0.2)rows++;
+  b.rows=Math.min(rows,8);
+}
+
+/* ================= Vérification NF C 15-100 ================= */
+function analyse(P){
+  const out=[];const add=(lvl,msg,b,it,why)=>out.push({lvl,msg,b:b?.id,item:it?.id,why});
+  const prin=principal(P);let allIds=[];
+  for(const b of P.boards){
+    const fm=feedMap(b), ids=b.items.filter(i=>i.t==='id');allIds=allIds.concat(ids);
+    const idCirc={};ids.forEach(d=>idCirc[d.id]=[]);
+    b.items.forEach(it=>{const f=fm[it.id];if(f&&f.by)idCirc[f.by].push(it)});
+    for(const it of b.items.filter(i=>i.t==='disj')){
+      const c=it.c, sp=CIRC[c.k]||CIRC.autre, f=fm[it.id], id=f.by?ids.find(d=>d.id===f.by):null;
+      const nm=`« ${c.label||sp.n} »`;
+      if(!String(c.label||'').trim())add('warn',`Un disjoncteur ${c.cal} A n’a pas de repère.`,b,it,'Chaque circuit doit être repéré dans le tableau (étiquette). Le Consuel le vérifie.');
+      const mx=MAXCAL[c.sec];
+      if(c.cal>mx)add('err',`${nm} : un câble de ${fmt(c.sec)} mm² ne supporte pas ${c.cal} A (maximum ${mx} A).`,b,it,'Le disjoncteur protège le câble. Si son calibre dépasse ce que le câble supporte, le câble chauffe avant que le disjoncteur coupe.');
+      if(!sp.ptab&&c.k!=='div'&&c.k!=='autre'){
+        if(c.sec<sp.sec)add('err',`${nm} : section minimale ${fmt(sp.sec)} mm² pour ce circuit (tu as ${fmt(c.sec)} mm²).`,b,it,`Circuit ${sp.n} : ${fmt(sp.sec)} mm² protégé en ${sp.cal} A.`);
+        if(c.k==='eclairage'&&c.cal>16)add('err',`${nm} : l’éclairage se protège en 16 A maximum.`,b,it,'Circuit éclairage : 1,5 mm², disjoncteur 10 ou 16 A.');
+        else if(c.k==='vmc'&&c.cal>2)add('warn',`${nm} : disjoncteur 2 A attendu pour la VMC.`,b,it,'La VMC a son propre circuit, protégé par un disjoncteur 2 A.');
+        else if(c.cal<sp.cal&&!['eclairage','prises','vmc'].includes(c.k))add('warn',`${nm} : ${sp.cal} A prévu pour ce circuit (tu as ${c.cal} A), risque de coupures.`,b,it,'Un calibre trop faible fait déclencher le disjoncteur en fonctionnement normal.');
+      }
+      if(sp.max){const keys=Object.keys(sp.max).map(Number);const mxn=sp.max[c.sec]??sp.max[Math.max(...keys.filter(k=>k<=c.sec),keys[0])];
+        if((+c.n||0)>mxn)add('err',`${nm} : ${c.n} ${sp.cnt}, c’est trop (maximum ${mxn} en ${fmt(c.sec)} mm²).`,b,it,`Limite NF C 15-100 : ${sp.lim}. Crée un circuit de plus.`);}
+      if(sp.ptab){const I=(+c.p||0)/230;if(c.cal<I)add('err',`${nm} : ${c.p} W demandent ${I.toFixed(1)} A, le disjoncteur ${c.cal} A va sauter.`,b,it,'Prends le calibre au-dessus et la section qui va avec (bouton « Régler tout seul »).')}
+      if(c.k==='div'){const db=boardOf(P,c.board);
+        if(!db)add('err',`${nm} n’alimente aucun tableau.`,b,it,'Choisis le tableau divisionnaire alimenté dans les réglages du disjoncteur.');
+        else{const I=boardLoad(P,db)/230;if(I>c.cal)add('warn',`${nm} : le tableau « ${db.name} » tire environ ${Math.round(I)} A pour un départ ${c.cal} A.`,b,it,'Augmente le calibre du départ et la section du câble (6 mm²/32 A, 10 mm²/40 A, 16 mm²/63 A).')}}
+      if(!id){
+        if(c.k==='div'){const db=boardOf(P,c.board);if(db&&!db.items.some(i=>i.t==='id'))add('err',`${nm} : le tableau « ${db.name} » n’a aucun différentiel 30 mA.`,b,it,'Si le départ n’est pas derrière un 30 mA, le tableau divisionnaire doit avoir ses propres interrupteurs différentiels.')}
+        else add('err',`${nm} n’est protégé par aucun différentiel 30 mA.`,b,it,'Tous les circuits d’un logement passent par un interrupteur différentiel 30 mA. Place le disjoncteur à droite d’un différentiel (peigne) ou tire un fil vers un différentiel.');
+      }else{
+        if(sp.A&&id.type==='AC')add('err',`${nm} doit être derrière un différentiel type A (ou F), pas AC.`,b,it,'Plaques et lave-linge produisent des courants de fuite que le type AC ne détecte pas toujours.');
+        if(sp.irve){if(id.type==='AC')add('err',`${nm} : différentiel type A ou F obligatoire.`,b,it,'Recharge de véhicule : 30 mA type A (borne avec détection courant continu) ou F, ou type B.');
+          if(idCirc[id.id].filter(x=>x.t==='disj'||x.t==='prise').length>1)add('err',`${nm} doit avoir son propre différentiel 30 mA.`,b,it,'Chaque point de recharge est protégé individuellement par un différentiel 30 mA.')}
+        if(sp.recA&&id.type==='AC')add('warn',`${nm} : différentiel type A conseillé (onduleur). Vérifie la notice.`,b,it,'Les climatiseurs et pompes à chaleur à variateur génèrent des fuites que le type AC voit mal. La plupart des fabricants demandent un type A.');
+      }
+      if(c.k==='ce'&&P.tarif==='hc'&&!b.items.some(i=>i.t==='cont'))add('warn',`${nm} : ajoute un contacteur heures creuses.`,b,it,'Avec un abonnement heures creuses, le chauffe-eau est commandé par un contacteur jour/nuit.');
+    }
+    ids.forEach(d=>{
+      const cs=idCirc[d.id].filter(x=>x.t==='disj'||x.t==='prise');const nm=`${idName(b,d)} (${b.name})`;
+      if(cs.length>8)add('err',`${nm} protège ${cs.length} circuits (8 maximum).`,b,d,'Un interrupteur différentiel protège au plus 8 circuits. Ajoute un différentiel.');
+      if(!cs.length)add('warn',`${nm} ne protège aucun circuit.`,b,d,'Place des disjoncteurs à sa droite sur la même rangée, ou câble-les vers lui.');
+      const I=cs.reduce((a,i)=>a+loadOf(P,i),0)/230;
+      if(I>d.cal)add(I>d.cal*1.25?'err':'warn',`${nm} : environ ${Math.round(I)} A en charge pour un calibre ${d.cal} A.`,b,d,'Passe en 63 A ou répartis les gros appareils (plaque, chauffage, recharge) sur d’autres différentiels.');
+    });
+    const ecl=b.items.filter(i=>i.t==='disj'&&i.c.k==='eclairage');
+    const eIds=new Set(ecl.map(i=>fm[i.id].by).filter(Boolean));
+    if(ecl.length>=2&&eIds.size<2)add('warn',`${b.name} : tout l’éclairage est sur le même différentiel.`,b,null,'Répartis l’éclairage sur au moins deux différentiels. Si l’un saute, une partie du logement reste éclairée.');
+    const tot=b.rows*b.mpr, free=(tot-usedMods(b))/tot;
+    if(free<0.2)add('err',`${b.name} : réserve de ${Math.round(free*100)} % (20 % minimum).`,b,null,'Le tableau garde au moins 20 % de place libre pour les ajouts futurs. Ajoute une rangée.');
+    if(b.kind==='div'){
+      if(!b.items.some(i=>i.t==='sect'))add('warn',`${b.name} : ajoute un interrupteur de tête.`,b,null,'Un tableau divisionnaire a un dispositif de coupure en tête pour couper tout le tableau sur place.');
+      if(!prin.items.some(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id))add('err',`${b.name} n’est alimenté par aucun départ du tableau principal.`,b,null,'Ajoute un disjoncteur « Départ tableau divisionnaire » dans le tableau principal.');
+    }
+  }
+  const s=+P.surf||0, req=s<=35?2:s<=100?3:4;
+  if(allIds.length<req)add('err',`Pour ${s} m², il faut au moins ${req} interrupteurs différentiels 30 mA (tu en as ${allIds.length}).`,prin,null,'NF C 15-100 : jusqu’à 35 m² : 2 · de 35 à 100 m² : 3 · plus de 100 m² : 4, dont au moins un type A.');
+  if(!allIds.some(d=>d.type!=='AC'))add('err','Il faut au moins un différentiel type A (ou F).',prin,null,'Le type A protège la plaque de cuisson et le lave-linge.');
+  if(P.foudre&&!prin.items.some(i=>i.t==='para'))add('err','Parafoudre obligatoire dans ta zone (ou bâtiment avec paratonnerre).',prin,null,'Le parafoudre se place en tête du tableau principal, avec son dispositif de déconnexion.');
+  const pf=demand(P);
+  if(pf>P.kva*1000)add('warn',`Puissance estimée ${kw(pf)}, plus que l’abonnement ${P.kva} kVA.`,prin,null,`Passe à ${suggestKva(P)} kVA ou délestage. Le disjoncteur de branchement (AGCP) risque de couper.`);
+  return out;
+}
+
+/* ================= État ================= */
+let S;try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
+if(!S||!S.boards||!S.boards.length)S=generate(DEFAULT_HOME);
+let SEL=null, PTAB='verif', ISSUES=[];
+const HIST=[];
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function mutate(fn){HIST.push(JSON.stringify(S));if(HIST.length>80)HIST.shift();fn();commit()}
+function undo(){if(!HIST.length){toast('Rien à annuler');return}S=JSON.parse(HIST.pop());commit();toast('Annulé')}
+function commit(){save();render()}
+function cur(){return boardOf(S,S.cur)||S.boards[0]}
+function findItem(id){for(const b of S.boards){const it=b.items.find(i=>i.id===id);if(it)return{b,it}}return null}
+
+/* ================= Dessin des modules ================= */
+function modSVG(it,brandKey){
+  const B=BR[brandKey]||BR.generic, w=W[it.t]*MOD, h=MOD_H;
+  let s=`<rect x="1.5" y="0" width="${w-3}" height="${h}" rx="5" fill="var(--m-body)" stroke="var(--m-edge)"/>`;
+  s+=`<rect x="4" y="4" width="${w-8}" height="22" rx="3" fill="var(--m-term)"/><rect x="4" y="${h-26}" width="${w-8}" height="22" rx="3" fill="var(--m-term)"/>`;
+  for(let k=0;k<W[it.t];k++){for(const cy of[15,h-15]){const cx=k*MOD+MOD/2;s+=`<circle cx="${cx}" cy="${cy}" r="6" fill="var(--m-screw)"/><path d="M${cx-4} ${cy}h8M${cx} ${cy-4}v8" stroke="var(--m-body)" stroke-width="1.6"/>`}}
+  s+=`<rect x="5" y="31" width="${w-10}" height="${h-62}" rx="3" fill="var(--m-face)"/>`;
+  if(B.stripe)s+=`<rect x="5" y="31" width="${w-10}" height="3.5" fill="${B.stripe}"/>`;
+  const T=(x,y,t,sz=10,col='var(--m-ink)',fam='var(--f-mono)',wt=700)=>`<text x="${x}" y="${y}" text-anchor="middle" font-family="${fam}" font-size="${sz}" font-weight="${wt}" fill="${col}">${t}</text>`;
+  const cx=w/2;
+  if(it.t==='disj'){
+    s+=`<rect x="${cx-7}" y="44" width="14" height="34" rx="3" fill="${B.lever}"/><rect x="${cx-5}" y="46" width="10" height="9" rx="2" fill="#ffffff" opacity=".22"/>`;
+    s+=`<rect x="${cx-6}" y="83" width="12" height="5" rx="1.5" fill="var(--m-red)"/>`;
+    s+=T(cx,103,'C'+it.c.cal,11);
+    if(B.short)s+=T(cx,114,B.short,6,'var(--m-sub)','var(--f-body)',600);
+  }else if(it.t==='id'){
+    s+=`<rect x="${cx-9}" y="44" width="18" height="34" rx="3" fill="${B.lever}"/><rect x="${cx-7}" y="46" width="14" height="9" rx="2" fill="#ffffff" opacity=".22"/>`;
+    s+=`<rect x="9" y="40" width="${it.type==='AC'?20:14}" height="13" rx="2" fill="none" stroke="var(--m-ink)" stroke-width="1.2"/>`+T(it.type==='AC'?19:16,50,it.type,8.5);
+    s+=`<circle cx="${w-15}" cy="47" r="6" fill="var(--m-yellow)" stroke="var(--m-sub)" stroke-width=".8"/>`+T(w-15,50,'T',7);
+    s+=T(cx,96,it.cal+' A',12)+T(cx,108,'30 mA',8.5,'var(--m-sub)');
+    if(B.short)s+=T(cx,118,B.short,6,'var(--m-sub)','var(--f-body)',600);
+  }else if(it.t==='para'){
+    s+=`<rect x="12" y="42" width="${w-24}" height="16" rx="2" fill="#2f9e4f"/><path d="M${cx+3} 64 l-10 18 h8 l-4 16 l12 -21 h-8 l5 -13z" fill="var(--m-yellow)" stroke="var(--m-ink)" stroke-width="1"/>`+T(cx,112,'PARAFOUDRE',6.5,'var(--m-sub)','var(--f-body)',700);
+  }else if(it.t==='cont'){
+    s+=`<rect x="${cx-11}" y="42" width="22" height="36" rx="3" fill="var(--m-term)" stroke="var(--m-edge)"/>`+T(cx-5,52,'I',6)+T(cx-5,63,'A',6)+T(cx-5,74,'0',6);
+    s+=`<rect x="${cx+1}" y="56" width="7" height="10" rx="1.5" fill="${B.lever}"/>`+T(cx,96,'HC',11)+T(cx,107,'20 A',7,'var(--m-sub)');
+  }else if(it.t==='tl'){
+    s+=`<rect x="${cx-9}" y="46" width="18" height="18" rx="9" fill="${B.lever}"/>`+T(cx,92,'TL',11)+T(cx,103,'16 A',7,'var(--m-sub)');
+  }else if(it.t==='sect'){
+    s+=`<rect x="${cx-9}" y="44" width="18" height="34" rx="3" fill="var(--m-red)"/>`+T(cx,98,'I – 0',10)+T(cx,110,'63 A',7.5,'var(--m-sub)');
+  }else if(it.t==='prise'){
+    s+=`<circle cx="${cx}" cy="70" r="24" fill="var(--m-term)" stroke="var(--m-edge)"/><circle cx="${cx-9}" cy="70" r="3.4" fill="var(--m-ink)"/><circle cx="${cx+9}" cy="70" r="3.4" fill="var(--m-ink)"/><rect x="${cx-2}" y="49" width="4" height="7" rx="1" fill="var(--m-screw)"/>`+T(cx,110,'16 A',8,'var(--m-sub)');
+  }
+  return s;
+}
+function miniSVG(it,brand){const w=W[it.t]*MOD;return `<svg viewBox="0 0 ${w} ${MOD_H}" aria-hidden="true">${modSVG(it,brand)}</svg>`}
+
+/* ================= Rendu du tableau ================= */
+function boardDims(b){return{Wd:LEFT*2+b.mpr*MOD,Hd:TOP+b.rows*ROW_H+6}}
+function pos(it){return{x:LEFT+it.col*MOD,y:TOP+it.row*ROW_H+MOD_Y}}
+function renderBoard(){
+  const b=cur(), fm=feedMap(b), {Wd,Hd}=boardDims(b), B=S.brand;
+  const st={};ISSUES.forEach(i=>{if(i.item){const r={err:3,warn:2}[i.lvl]||0;st[i.item]=Math.max(st[i.item]||0,r)}});
+  let s=`<svg id="bsvg" viewBox="0 0 ${Wd} ${Hd}" style="max-width:${Math.round(Wd*1.55)}px" role="img" aria-label="Tableau ${esc(b.name)}">`;
+  s+=`<defs><linearGradient id="rail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--rail)"/><stop offset=".5" stop-color="var(--slot)"/><stop offset="1" stop-color="var(--rail)"/></linearGradient></defs>`;
+  s+=`<rect x="3" y="3" width="${Wd-6}" height="${Hd-6}" rx="16" fill="var(--coffret)" stroke="var(--coffret-edge)" stroke-width="3"/>`;
+  const headTxt=b.kind==='principal'?`AGCP 500 mA · réglé ${S.kva*5} A`:(()=>{const f=principal(S).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return f?`Départ ${f.c.cal} A · ${fmt(f.c.sec)} mm²`:'Non alimenté'})();
+  s+=`<g><rect x="${LEFT}" y="16" width="${Math.min(230,Wd-LEFT*2)}" height="34" rx="7" fill="var(--m-body)" stroke="var(--m-edge)"/><text x="${LEFT+12}" y="30" font-family="var(--f-body)" font-weight="700" font-size="9" letter-spacing=".08em" fill="var(--m-sub)">ARRIVÉE</text><text x="${LEFT+12}" y="43" font-family="var(--f-mono)" font-weight="700" font-size="10" fill="var(--m-ink)">${esc(headTxt)}</text></g>`;
+  for(let r=0;r<b.rows;r++){
+    const y0=TOP+r*ROW_H, my=y0+MOD_Y;
+    s+=`<rect x="${LEFT-8}" y="${my+MOD_H/2-11}" width="${b.mpr*MOD+16}" height="22" rx="3" fill="url(#rail)"/>`;
+    for(let c=0;c<b.mpr;c++)s+=`<rect x="${LEFT+c*MOD+2}" y="${my+6}" width="${MOD-4}" height="${MOD_H-12}" rx="4" fill="none" stroke="var(--slot)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+    s+=`<rect x="${LEFT-6}" y="${my+MOD_H+22}" width="${b.mpr*MOD+12}" height="100" rx="4" fill="var(--strip)" stroke="var(--coffret-edge)"/>`;
+    s+=`<text x="${LEFT+b.mpr*MOD+26}" y="${my+MOD_H/2+4}" text-anchor="middle" font-family="var(--f-display)" font-weight="700" font-size="13" fill="var(--muted)">${r+1}</text>`;
+  }
+  // fils d'arrivée vers différentiels et modules de tête
+  const heads=b.items.filter(i=>i.t==='id'||fm[i.id].via==='direct'||i.t==='sect'||i.t==='para').sort((a,c)=>a.row-c.row||a.col-c.col);
+  heads.forEach((it,k)=>{
+    const p=pos(it), tx=p.x+W[it.t]*MOD/2, gy=p.y-24+(k%3)*2, gx=14+(k%5)*4;
+    [['var(--phase)',-3],['var(--neutre)',3]].forEach(([col,o])=>{
+      s+=`<path d="M${gx+o} 46 V${gy+o/1.5} H${tx+o} V${p.y+6}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" opacity=".9"/>`;
+    });
+  });
+  // peignes
+  sortedIds(b).forEach(d=>{
+    const fed=b.items.filter(i=>fm[i.id].by===d.id&&fm[i.id].via==='peigne');
+    if(!fed.length)return;
+    const p=pos(d), end=Math.max(...fed.map(i=>i.col+W[i.t]));
+    const x1=p.x+6, x2=LEFT+end*MOD-6, y=p.y-13;
+    s+=`<rect x="${x1}" y="${y-1}" width="${x2-x1}" height="11" rx="3" fill="var(--m-sub)" opacity=".85"/><path d="M${x1+3} ${y+3}H${x2-3}" stroke="var(--phase)" stroke-width="2"/><path d="M${x1+3} ${y+7}H${x2-3}" stroke="var(--neutre)" stroke-width="2"/>`;
+    [d,...fed].forEach(i=>{const q=pos(i);for(let k=0;k<W[i.t];k++){const cx=q.x+k*MOD+MOD/2;s+=`<rect x="${cx-2}" y="${y+9}" width="4" height="9" fill="var(--m-sub)"/>`}});
+  });
+  // modules
+  b.items.forEach(it=>{
+    const p=pos(it), w=W[it.t]*MOD;
+    s+=`<g class="mod" data-item="${it.id}" transform="translate(${p.x},${p.y})">${modSVG(it,B)}`;
+    if(SEL===it.id)s+=`<rect x="-2" y="-3" width="${w+4}" height="${MOD_H+6}" rx="7" fill="none" stroke="var(--accent)" stroke-width="3.5"/>`;
+    const lv=st[it.id];
+    if(lv)s+=`<circle cx="${w-7}" cy="38" r="7.5" fill="${lv===3?'var(--err)':'var(--warn)'}" stroke="var(--m-body)" stroke-width="1.5"/><text x="${w-7}" y="41.5" text-anchor="middle" font-family="var(--f-body)" font-weight="700" font-size="10" fill="#fff">!</text>`;
+    s+=`</g>`;
+    // câbles de départ + étiquette
+    const ly=p.y+MOD_H+22;
+    if(it.t==='disj'||it.t==='prise'||it.t==='cont'||it.t==='tl'){
+      const cx=p.x+MOD/2;
+      if(it.t==='disj'){s+=`<path d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--phase)" stroke-width="2.6"/><path d="M${cx+6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--neutre)" stroke-width="2.6"/>`}
+    }
+    const l1=it.t==='disj'?(it.c.label||CIRC[it.c.k].n):it.t==='id'?idName(b,it):itemName(it);
+    const l2=it.t==='disj'?`${it.c.cal} A · ${fmt(it.c.sec)} mm²`:it.t==='id'?`${it.cal} A · type ${it.type}`:'';
+    const tx=p.x+w/2;
+    const cut=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;
+    s+=`<g transform="translate(${tx-2},${ly+96}) rotate(-90)"><text font-family="var(--f-body)" font-weight="700" font-size="8.5" fill="var(--ink)">${esc(cut(l1,21))}</text></g>`;
+    if(l2)s+=`<g transform="translate(${tx+9},${ly+96}) rotate(-90)"><text font-family="var(--f-mono)" font-size="6.6" fill="var(--muted)">${esc(l2)}</text></g>`;
+    if(it.t==='disj'||it.t==='cont'||it.t==='tl'||it.t==='prise'){
+      const hx=p.x+MOD/2, hy=p.y-38;
+      s+=`<g class="wh" data-wire="${it.id}"><circle class="hit" cx="${hx}" cy="${hy}" r="13"/><circle class="ring" cx="${hx}" cy="${hy}" r="6.5" fill="var(--m-body)" stroke="var(--m-sub)" stroke-width="1.6"/><circle cx="${hx}" cy="${hy}" r="2.2" fill="var(--phase)"/></g>`;
+    }
+  });
+  // fils manuels
+  b.items.forEach(it=>{
+    if(fm[it.id].via!=='fil')return;
+    const d=b.items.find(i=>i.id===it.feed), p=pos(it), q=pos(d);
+    const x1=p.x+MOD/2, y1=p.y-38, x2=q.x+MOD, y2=q.y+MOD_H-14;
+    [['var(--phase)',-2.5],['var(--neutre)',2.5]].forEach(([col,o])=>{
+      s+=`<path d="M${x1+o} ${y1} C${x1+o} ${y1-70} ${x2+o} ${y2+90} ${x2+o} ${y2}" fill="none" stroke="var(--coffret)" stroke-width="6" stroke-linecap="round"/><path d="M${x1+o} ${y1} C${x1+o} ${y1-70} ${x2+o} ${y2+90} ${x2+o} ${y2}" fill="none" stroke="${col}" stroke-width="2.8" stroke-linecap="round"/>`;
+    });
+  });
+  s+=`<rect id="pv" x="0" y="0" width="0" height="0" rx="6" fill="var(--accent)" fill-opacity=".25" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="6 4" visibility="hidden"/>`;
+  s+=`<path id="tw" d="" fill="none" stroke="var(--phase)" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round"/>`;
+  s+=`</svg>`;
+  $('#boardwrap').innerHTML=s;
+}
+
+/* ================= Palette ================= */
+const TILES=[
+  {sec:'Appareils et circuits',open:true,items:Object.keys(CIRC).filter(k=>k!=='div'&&k!=='autre').map(k=>({key:'c:'+k,k}))},
+  {sec:'Interrupteurs différentiels 30 mA',open:true,items:[{key:'id:40:AC',t:'id',cal:40,type:'AC'},{key:'id:40:A',t:'id',cal:40,type:'A'},{key:'id:63:A',t:'id',cal:63,type:'A'},{key:'id:25:AC',t:'id',cal:25,type:'AC'},{key:'id:63:AC',t:'id',cal:63,type:'AC'},{key:'id:40:F',t:'id',cal:40,type:'F'}]},
+  {sec:'Disjoncteurs seuls',open:false,items:[2,10,16,20,25,32,40].map(c=>({key:'d:'+c,cal:c}))},
+  {sec:'Autres modules',open:false,items:[{key:'m:para',t:'para'},{key:'m:cont',t:'cont'},{key:'m:tl',t:'tl'},{key:'m:sect',t:'sect'},{key:'m:prise',t:'prise'}]}
+];
+function tileItem(key){
+  const [a,b,c]=key.split(':');
+  if(a==='c'){const it=mkCirc(b);it.c.label=CIRC[b].n;if(b==='eclairage')it.c.n=4;if(b==='prises')it.c.n=6;if(b==='cuisine')it.c.n=6;return it}
+  if(a==='id')return mkItem('id',{cal:+b,type:c});
+  if(a==='d'){const it=mkCirc('autre');it.c.cal=+b;it.c.sec=SECS.find(s=>MAXCAL[s]>=+b);it.c.label='';it.c.p=Math.round(+b*230*.5);return it}
+  return mkItem(b);
+}
+function renderPalette(){
+  let h='';
+  TILES.forEach(g=>{
+    h+=`<details ${g.open?'open':''}><summary>${g.sec}</summary><div class="tiles">`;
+    g.items.forEach(t=>{
+      if(t.k){const sp=CIRC[t.k];h+=`<div class="tile" data-tile="${t.key}" title="${esc(sp.n)} : ${esc(sp.lim)}"><div class="ic" aria-hidden="true">${sp.ic}</div><b>${esc(sp.n)}</b><span>${sp.cal} A · ${fmt(sp.sec)} mm²</span></div>`}
+      else{const it=tileItem(t.key);h+=`<div class="tile" data-tile="${t.key}">${miniSVG(it,S.brand)}<b>${esc(t.t==='id'?`Diff. ${t.cal} A type ${t.type}`:t.cal?`Disjoncteur ${t.cal} A`:itemName(it))}</b></div>`}
+    });
+    h+=`</div></details>`;
+  });
+  h+=`<p class="hint">Glisse un élément sur une rangée. Un disjoncteur posé à droite d’un différentiel est alimenté par le peigne.</p>`;
+  $('#palette').innerHTML=h;
+}
+
+/* ================= Barre de tableau / onglets ================= */
+function renderTabs(){
+  let h=S.boards.map(b=>`<button class="tab" type="button" data-board="${b.id}" aria-selected="${b.id===S.cur}">${esc(b.name)}</button>`).join('');
+  h+=`<button class="tab add" type="button" id="addDiv">+ Divisionnaire</button>`;
+  $('#tabs').innerHTML=h;
+  const b=cur();
+  $('#boardbar').innerHTML=`<label>Nom <input type="text" id="bName" value="${esc(b.name)}"></label>
+  <label>Rangées <span class="stepper"><button type="button" data-rows="-1" aria-label="Moins de rangées">−</button><output>${b.rows}</output><button type="button" data-rows="1" aria-label="Plus de rangées">+</button></span></label>
+  <label>Modules <select id="bMpr"><option value="13" ${b.mpr===13?'selected':''}>13</option><option value="18" ${b.mpr===18?'selected':''}>18</option></select></label>
+  <label>Marque <select id="bBrand">${Object.entries(BR).map(([k,v])=>`<option value="${k}" ${S.brand===k?'selected':''}>${v.name}</option>`).join('')}</select></label>
+  <span class="hint">${usedMods(b)}/${b.rows*b.mpr} modules · réserve ${Math.round((1-usedMods(b)/(b.rows*b.mpr))*100)} %</span>
+  ${b.kind==='div'?`<button class="btn small danger" type="button" id="delBoard">${DELB===b.id?'Confirmer la suppression':'Supprimer ce tableau'}</button>`:''}`;
+}
+let DELB=null;
+
+/* ================= Panneau droit ================= */
+function renderScore(){
+  const e=ISSUES.filter(i=>i.lvl==='err').length, w=ISSUES.filter(i=>i.lvl==='warn').length;
+  const cls=e?'err':w?'warn':'ok';
+  const title=e?`${e} point${e>1?'s':''} à corriger`:w?'Conforme, avec des conseils':'Prêt pour le Consuel';
+  const sub=e?'Le Consuel refuserait ce tableau en l’état.':w?`${w} conseil${w>1?'s':''} pour faire encore mieux.`:'Toutes les règles vérifiées sont respectées.';
+  $('#score').className='score '+cls;
+  $('#score').innerHTML=`<div class="big">${e?e:w?'✓':'✓'}</div><div><h2>${title}</h2><p>${sub}</p></div>`;
+}
+const PTABS=[['elem','Élément'],['verif','Contrôle'],['bilan','Logement'],['mat','Matériel'],['memo','Règles']];
+function renderPanel(){
+  $('#ptabs').innerHTML=PTABS.map(([k,l])=>`<button class="ptab" role="tab" type="button" data-ptab="${k}" aria-selected="${PTAB===k}">${l}</button>`).join('');
+  $('#pbody').innerHTML=({elem:elemHTML,verif:verifHTML,bilan:bilanHTML,mat:matHTML,memo:memoHTML}[PTAB])();
+}
+function issueHTML(i){return `<div class="issue ${i.lvl}" data-issue="${i.item||''}" data-ib="${i.b||''}"><div class="lvl">${{err:'À corriger',warn:'Conseil',ok:'OK',info:'Info'}[i.lvl]}</div>${esc(i.msg)}${i.why?`<div class="why">${esc(i.why)}</div>`:''}</div>`}
+function verifHTML(){
+  if(!ISSUES.length)return `<div class="issue ok"><div class="lvl">OK</div>Aucun problème détecté : 30 mA partout, calibres et sections cohérents, 8 circuits max par différentiel, réserve de 20 %.</div>`;
+  const srt=[...ISSUES].sort((a,b)=>(a.lvl==='err'?0:1)-(b.lvl==='err'?0:1));
+  return `<p class="hint">Touche un point pour voir l’explication et l’élément concerné.</p>`+srt.map(issueHTML).join('');
+}
+function sel(o,v,lab=x=>x){return o.map(x=>`<option value="${x}" ${String(x)===String(v)?'selected':''}>${lab(x)}</option>`).join('')}
+function elemHTML(){
+  const f=SEL&&findItem(SEL);
+  if(!f)return `<div class="empty">Touche un module du tableau pour le régler.<br><br>Pour ajouter un circuit, glisse un appareil (four, clim, prises…) depuis la gauche : le bon disjoncteur et la bonne section de câble sont choisis tout seuls.</div>`;
+  const {b,it}=f, fm=feedMap(b), my=ISSUES.filter(i=>i.item===it.id);
+  let h='';
+  if(it.t==='disj'){
+    const c=it.c, sp=CIRC[c.k]||CIRC.autre;
+    h+=`<h3>${sp.ic} ${esc(c.label||sp.n)}</h3>`;
+    h+=`<label class="field"><span>Circuit</span><select data-f="c.k">${Object.keys(CIRC).filter(k=>k!=='div'||b.kind==='principal').map(k=>`<option value="${k}" ${k===c.k?'selected':''}>${CIRC[k].n}</option>`).join('')}</select></label>`;
+    h+=`<label class="field"><span>Repère</span><input type="text" data-f="c.label" value="${esc(c.label)}" placeholder="ex. PC chambre 2"></label>`;
+    if(sp.cnt)h+=`<label class="field"><span>Nombre de ${sp.cnt}</span><input type="number" min="0" max="40" data-f="c.n" value="${+c.n||0}"><span class="note">Limite : ${esc(sp.lim)}</span></label>`;
+    if(c.k!=='div')h+=`<label class="field"><span>Puissance (W)</span><input type="number" min="0" step="50" data-f="c.p" value="${+c.p||0}">${(c.k==='clim'||c.k==='pac')?`<span class="note">Mets la puissance électrique absorbée (étiquette « P absorbée » ou « input »), pas la puissance froid. Une clim de 2,5 kW froid absorbe souvent 700 à 900 W.</span>`:''}</label>`;
+    if(c.k==='div'){
+      const divs=S.boards.filter(x=>x.kind==='div');
+      h+=`<label class="field"><span>Alimente</span><select data-f="c.board"><option value="">—</option>${divs.map(x=>`<option value="${x.id}" ${x.id===c.board?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`;
+    }
+    h+=`<label class="field"><span>Disjoncteur</span><select data-f="c.cal" data-num="1">${sel(CALS,c.cal,x=>x+' A courbe C')}</select></label>`;
+    h+=`<label class="field"><span>Câble</span><select data-f="c.sec" data-num="1">${sel(SECS,c.sec,x=>fmt(x)+' mm² (max '+MAXCAL[x]+' A)')}</select></label>`;
+    const ids=sortedIds(b), fd=fm[it.id];
+    h+=`<label class="field"><span>Alimentation</span><select data-f="feed"><option value="">Peigne (auto)${fd.via==='peigne'?' → '+idName(b,ids.find(d=>d.id===fd.by)):''}</option>${ids.map(d=>`<option value="${d.id}" ${it.feed===d.id?'selected':''}>Fil → ${idName(b,d)} ${d.cal} A ${d.type}</option>`).join('')}</select></label>`;
+    const r=recommend(c,S);
+    h+=`<div class="callout">Conseillé pour ce circuit : <b>${r.cal} A</b> en <b>${fmt(r.sec)} mm²</b>. ${esc(sp.lim)}.</div>`;
+    h+=`<div class="row-btns"><button class="btn primary small" type="button" data-act="auto">Régler tout seul</button>${c.k==='div'&&c.board?`<button class="btn small" type="button" data-act="open">Ouvrir le tableau</button>`:''}<button class="btn small" type="button" data-act="dup">Dupliquer</button><button class="btn small danger" type="button" data-act="del">Retirer</button></div>`;
+  }else if(it.t==='id'){
+    const cs=b.items.filter(i=>fm[i.id].by===it.id);const I=cs.reduce((a,i)=>a+loadOf(S,i),0)/230;
+    h+=`<h3>${idName(b,it)} · ${it.cal} A type ${it.type}</h3>`;
+    h+=`<label class="field"><span>Calibre</span><select data-f="cal" data-num="1">${sel([25,40,63],it.cal,x=>x+' A')}</select></label>`;
+    h+=`<label class="field"><span>Type</span><select data-f="type">${sel(['AC','A','F'],it.type,x=>'Type '+x)}</select><span class="note">AC : usage courant · A : plaque, lave-linge, recharge VE, clim · F : variateurs (PAC, lave-linge à moteur inverter)</span></label>`;
+    h+=`<div class="loadrow"><div class="l"><span>Charge estimée</span><span>${Math.round(I)} / ${it.cal} A</span></div><div class="bar"><i style="width:${Math.min(100,I/it.cal*100)}%;background:${I>it.cal?'var(--err)':I>it.cal*.8?'var(--warn)':'var(--ok)'}"></i></div></div>`;
+    h+=`<div class="loadrow"><div class="l"><span>Circuits protégés</span><span>${cs.filter(i=>i.t==='disj'||i.t==='prise').length} / 8</span></div></div>`;
+    h+=cs.length?`<ul class="rules">${cs.map(i=>`<li>${esc(itemName(i))}${i.t==='disj'?` · ${i.c.cal} A`:''}${feedMap(b)[i.id].via==='fil'?' (fil)':''}</li>`).join('')}</ul>`:'';
+    h+=`<div class="row-btns"><button class="btn small" type="button" data-act="dup">Dupliquer</button><button class="btn small danger" type="button" data-act="del">Retirer</button></div>`;
+  }else{
+    const desc={para:'Protège l’installation contre les surtensions dues à la foudre. Obligatoire en zone exposée (AQ2) ou si le bâtiment a un paratonnerre. Se place en tête du tableau principal.',cont:'Commande le chauffe-eau pendant les heures creuses (signal du compteur). Positions : I (marche forcée), AUTO, 0.',tl:'Commande un éclairage depuis plusieurs boutons poussoirs.',sect:'Coupe tout le tableau. Obligatoire en tête d’un tableau divisionnaire.',prise:'Prise de courant dans le tableau, pratique pour brancher un appareil de mesure ou une box.'}[it.t];
+    h+=`<h3>${itemName(it)}</h3><p class="hint">${desc}</p><div class="row-btns"><button class="btn small" type="button" data-act="dup">Dupliquer</button><button class="btn small danger" type="button" data-act="del">Retirer</button></div>`;
+  }
+  if(my.length)h+=`<h3>Contrôle</h3>`+my.map(issueHTML).join('');
+  else h+=`<div class="issue ok" style="margin-top:12px"><div class="lvl">OK</div>Cet élément respecte les règles vérifiées.</div>`;
+  return h;
+}
+function bilanHTML(){
+  const prin=principal(S), pf=demand(S), pi=installed(S), sug=suggestKva(S);
+  let h=`<h3>Ton logement</h3>
+  <label class="field"><span>Nom</span><input type="text" data-p="name" value="${esc(S.name)}"></label>
+  <label class="field"><span>Surface (m²)</span><input type="number" min="10" max="1000" data-p="surf" data-num="1" value="${S.surf}"><span class="note">Fixe le nombre minimum de différentiels.</span></label>
+  <label class="field"><span>Option tarifaire</span><select data-p="tarif">${sel(['base','hc'],S.tarif,x=>x==='hc'?'Heures creuses':'Base')}</select></label>
+  <label class="field"><span>Abonnement</span><select data-p="kva" data-num="1">${sel(KVA,S.kva,x=>x+' kVA (AGCP '+x*5+' A)')}</select></label>
+  <label class="field"><span>Zone foudre</span><select data-p="foudre">${sel(['0','1'],S.foudre?'1':'0',x=>x==='1'?'Oui : parafoudre obligatoire':'Non')}</select></label>
+  <h3>Bilan de puissance</h3>
+  <div class="kpis"><div class="kpi"><small>Puissance installée</small><b>${kw(pi)}</b></div><div class="kpi"><small>Puissance appelée</small><b>${kw(pf)}</b></div><div class="kpi"><small>Courant estimé</small><b>${Math.round(pf/230)} A</b></div><div class="kpi"><small>Abonnement conseillé</small><b>${sug} kVA</b></div></div>
+  <p class="hint">Tout ne marche pas en même temps. Chaque circuit compte avec un coefficient (prises 0,3 · éclairage 0,7 · gros électroménager 0,6 · chauffage, clim, chauffe-eau, recharge 1), puis le total est multiplié par 0,7 pour l’ensemble du logement. Si tu pilotes la recharge de la voiture en heures creuses, tu peux souvent rester un cran en dessous.</p>
+  <div class="callout"><b>Et la clim, je la compte ?</b> Oui. Elle a son propre circuit et sa puissance électrique absorbée s’ajoute au bilan à 100 %, car elle tourne longtemps quand il fait chaud. C’est souvent elle, avec la recharge de la voiture, qui oblige à monter d’abonnement. Exemple : clim 900 W + recharge 3,7 kW = 4,6 kW de plus, soit environ 20 A.</div>
+  <h3>Charge par différentiel</h3>`;
+  S.boards.forEach(b=>{const fm=feedMap(b);sortedIds(b).forEach(d=>{const I=b.items.filter(i=>fm[i.id].by===d.id).reduce((a,i)=>a+loadOf(S,i),0)/230;
+    h+=`<div class="loadrow"><div class="l"><span>${esc(b.name)} · ${idName(b,d)} ${d.type}</span><span>${Math.round(I)} / ${d.cal} A</span></div><div class="bar"><i style="width:${Math.min(100,I/d.cal*100)}%;background:${I>d.cal?'var(--err)':I>d.cal*.8?'var(--warn)':'var(--ok)'}"></i></div></div>`})});
+  return h;
+}
+function needs(){
+  const B=BR[S.brand]||BR.generic, pre='';
+  const m=new Map();const add=(k,name,n=1)=>{const e=m.get(k)||{k,name,n:0};e.n+=n;m.set(k,e)};
+  S.boards.forEach(b=>{
+    add(`coffret-${b.rows}x${b.mpr}`,`${pre}${B.gC} Coffret ${b.rows} rangée${b.rows>1?'s':''} × ${b.mpr} modules`.replace(/\s+/g,' ').trim());
+    const fm=feedMap(b);
+    b.items.forEach(i=>{
+      if(i.t==='disj')add('disj-'+i.c.cal,`${pre}${B.gD} Disjoncteur 1P+N ${i.c.cal} A courbe C`.replace(/\s+/g,' ').trim());
+      else if(i.t==='id')add(`id-${i.cal}-${i.type}`,`${pre}${B.gI} Interrupteur différentiel ${i.cal} A 30 mA type ${i.type}`.replace(/\s+/g,' ').trim());
+      else add('m-'+i.t,pre+{para:'Parafoudre 1P+N',cont:'Contacteur heures creuses 20 A',tl:'Télérupteur 16 A',sect:'Interrupteur-sectionneur 63 A',prise:'Prise de courant modulaire 16 A'}[i.t]);
+    });
+    for(let r=0;r<b.rows;r++)if(b.items.some(i=>i.row===r&&fm[i.id].via==='peigne'))add('peigne-'+b.mpr,`${pre}Peigne 1P+N ${b.mpr} modules`);
+    const fils=b.items.filter(i=>fm[i.id].via==='fil').length;if(fils)add('fil-10',`Fils de liaison 10 mm² (paires phase/neutre)`,fils);
+  });
+  const cables={};S.boards.forEach(b=>b.items.forEach(i=>{if(i.t==='disj'){cables[i.c.sec]=(cables[i.c.sec]||0)+1}}));
+  return{list:[...m.values()].sort((a,b)=>a.k.localeCompare(b.k,'fr',{numeric:true})),cables};
+}
+function matHTML(){
+  const {list,cables}=needs();let buy=0;
+  let h=`<h3>Liste de matériel · ${esc((BR[S.brand]||BR.generic).name)}</h3><p class="hint">Indique ce que tu as déjà : la colonne « À acheter » se met à jour.</p><div class="tablewrap"><table><thead><tr><th>Produit</th><th>Besoin</th><th>J’ai</th><th>À acheter</th></tr></thead><tbody>`;
+  list.forEach(e=>{const have=+(S.stock[e.k]||0), miss=Math.max(0,e.n-have);if(miss)buy+=miss;
+    h+=`<tr><td>${esc(e.name)}</td><td class="num">${e.n}</td><td><input type="number" min="0" data-stock="${e.k}" value="${have}" aria-label="En stock : ${esc(e.name)}"></td><td class="num ${miss?'buy':'got'}">${miss||'✓'}</td></tr>`});
+  h+=`</tbody></table></div>`;
+  h+=`<div class="callout">${buy?`Il te manque <b>${buy}</b> article${buy>1?'s':''}.`:'Tu as tout le matériel pour ce tableau.'}</div>`;
+  h+=`<h3>Câbles de départ</h3><ul class="rules">${Object.keys(cables).sort((a,b)=>a-b).map(s=>`<li>${fmt(s)} mm² : ${cables[s]} circuit${cables[s]>1?'s':''} (3G${fmt(s)} ou fils H07V-U ${fmt(s)} mm²)</li>`).join('')}</ul>`;
+  h+=`<div class="row-btns"><button class="btn small" type="button" data-act="copyList">Copier la liste d’achat</button></div>`;
+  return h;
+}
+function memoHTML(){
+  let h=`<h3>Circuits du logement</h3><div class="tablewrap"><table><thead><tr><th>Circuit</th><th>Câble</th><th>Disj.</th><th>Règle</th></tr></thead><tbody>`;
+  Object.entries(CIRC).filter(([k])=>k!=='autre').forEach(([k,c])=>{
+    const cab=c.ptab?'selon W':k==='div'?'6 / 10 / 16':fmt(c.sec);
+    const cal=c.ptab?'selon W':k==='div'?'32 / 40 / 63':c.cal+(k==='eclairage'?' (ou 10)':k==='prises'?' (ou 16 en 1,5)':'');
+    h+=`<tr><td>${c.ic} ${esc(c.n)}</td><td class="num">${cab}</td><td class="num">${cal}</td><td>${esc(c.lim)}</td></tr>`});
+  h+=`</tbody></table></div>
+  <h3>Chauffage, clim, PAC : selon la puissance</h3><div class="tablewrap"><table><thead><tr><th>Jusqu’à</th><th>Câble</th><th>Disj.</th></tr></thead><tbody>${PTABLE.map(r=>`<tr><td class="num">${r[2].toLocaleString('fr-FR')} W</td><td class="num">${fmt(r[1])} mm²</td><td class="num">${r[0]} A</td></tr>`).join('')}</tbody></table></div>
+  <h3>Règles générales vérifiées</h3><ul class="rules">
+  <li>Tous les circuits sont protégés par un interrupteur différentiel 30 mA.</li>
+  <li>Nombre minimum de différentiels : 2 jusqu’à 35 m², 3 de 35 à 100 m², 4 au-delà, dont au moins un type A.</li>
+  <li>8 circuits maximum par interrupteur différentiel.</li>
+  <li>Plaque de cuisson et lave-linge derrière un type A (ou F). Recharge VE : un 30 mA type A ou F par point de charge.</li>
+  <li>Le calibre du disjoncteur ne dépasse jamais ce que le câble supporte : 1,5 mm² → 16 A · 2,5 → 20 A · 4 → 25 A · 6 → 32 A · 10 → 50 A · 16 → 63 A.</li>
+  <li>Éclairage : 8 points max · Prises : 5 socles (1,5 mm²) ou 12 socles (2,5 mm²) · Cuisine : circuit dédié de 6 socles.</li>
+  <li>Réserve d’au moins 20 % dans chaque tableau.</li>
+  <li>Chaque circuit est repéré (étiquette).</li>
+  <li>Tableau divisionnaire : départ protégé depuis le principal et interrupteur de tête.</li>
+  <li>Parafoudre en zone foudre ou avec paratonnerre.</li>
+  <li>Charge de chaque différentiel cohérente avec son calibre ; puissance totale cohérente avec l’abonnement.</li>
+  </ul>
+  <h3>À vérifier sur le chantier</h3><ul class="rules">
+  <li>Organes de commande du tableau entre 1 m et 1,80 m du sol (0,75 à 1,30 m pour un logement accessible PMR).</li>
+  <li>Tableau dans la gaine technique logement (GTL), jamais dans une salle d’eau.</li>
+  <li>Prise de terre, conducteur principal de terre, liaison équipotentielle de la salle de bain.</li>
+  <li>Couleurs : neutre bleu, terre vert-jaune, phase d’une autre couleur (marron, rouge, noir).</li>
+  <li>Volumes de la salle de bain respectés pour les prises et luminaires.</li>
+  </ul>`;
+  return h;
+}
+
+/* ================= Rendu global ================= */
+function render(){
+  ISSUES=analyse(S);
+  if(SEL&&!findItem(SEL))SEL=null;
+  renderTabs();renderBoard();renderScore();renderPanel();
+  $('#bUndo').disabled=!HIST.length;
+}
+
+/* ================= Glisser-déposer ================= */
+let DRAG=null;
+function svgPt(e){const svg=$('#bsvg');const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())}
+function scale(){const b=cur();return $('#bsvg').getBoundingClientRect().width/boardDims(b).Wd}
+function free(b,row,col,w,ignore){if(col<0||col+w>b.mpr||row<0||row>=b.rows)return false;return !b.items.some(i=>i.id!==ignore&&i.row===row&&col<i.col+W[i.t]&&i.col<col+w)}
+function target(e,w,ignore){
+  const svg=$('#bsvg');if(!svg)return null;const r=svg.getBoundingClientRect();
+  if(e.clientX<r.left-20||e.clientX>r.right+20||e.clientY<r.top-20||e.clientY>r.bottom+20)return null;
+  const b=cur(),p=svgPt(e);const row=Math.floor((p.y-TOP)/ROW_H);if(row<0||row>=b.rows)return null;
+  let col=Math.round((p.x-LEFT)/MOD-w/2);col=Math.max(0,Math.min(b.mpr-w,col));
+  if(free(b,row,col,w,ignore))return{row,col};
+  for(let d=1;d<b.mpr;d++){for(const c of[col-d,col+d])if(free(b,row,c,w,ignore))return{row,col:c}}
+  return{row,col,bad:true};
+}
+function ghost(it,label){
+  const s=scale()||1, w=W[it.t]*MOD*s, h=MOD_H*s;
+  const g=document.createElement('div');g.className='ghost';g.style.width=w+'px';g.style.height=h+'px';
+  g.innerHTML=`<svg viewBox="0 0 ${W[it.t]*MOD} ${MOD_H}" width="${w}" height="${h}">${modSVG(it,S.brand)}</svg>${label?`<div class="gl">${esc(label)}</div>`:''}`;
+  $('#layer').appendChild(g);return g;
+}
+function moveGhost(e){if(!DRAG.g)return;const r=DRAG.g.getBoundingClientRect();DRAG.g.style.transform=`translate(${e.clientX-r.width/2}px,${e.clientY-r.height/2}px) rotate(-3deg)`}
+function showPv(t,w){const pv=$('#pv');if(!pv)return;if(!t){pv.setAttribute('visibility','hidden');return}
+  pv.setAttribute('visibility','visible');pv.setAttribute('x',LEFT+t.col*MOD);pv.setAttribute('y',TOP+t.row*ROW_H+MOD_Y);pv.setAttribute('width',w*MOD);pv.setAttribute('height',MOD_H);
+  pv.setAttribute('stroke',t.bad?'var(--err)':'var(--accent)');pv.setAttribute('fill',t.bad?'var(--err)':'var(--accent)')}
+function startDrag(e,opts){
+  e.preventDefault();
+  DRAG={...opts,sx:e.clientX,sy:e.clientY,moved:false,g:null,pid:e.pointerId};
+  window.addEventListener('pointermove',onMove);window.addEventListener('pointerup',onUp);window.addEventListener('pointercancel',onCancel);
+}
+function onMove(e){
+  if(!DRAG)return;
+  if(DRAG.kind==='wire'){const p=svgPt(e);const tw=$('#tw');tw.setAttribute('d',`M${DRAG.x} ${DRAG.y} C${DRAG.x} ${DRAG.y-60} ${p.x} ${p.y+60} ${p.x} ${p.y}`);return}
+  if(!DRAG.moved){if(Math.hypot(e.clientX-DRAG.sx,e.clientY-DRAG.sy)<6)return;DRAG.moved=true;
+    DRAG.g=ghost(DRAG.it,DRAG.label);if(DRAG.from){const el=document.querySelector(`[data-item="${DRAG.it.id}"]`);el&&el.classList.add('dim')}}
+  moveGhost(e);
+  const t=target(e,W[DRAG.it.t],DRAG.from?DRAG.it.id:null);DRAG.t=t;showPv(t,W[DRAG.it.t]);
+}
+function endDrag(){window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',onUp);window.removeEventListener('pointercancel',onCancel);if(DRAG&&DRAG.g)DRAG.g.remove();DRAG=null}
+function onCancel(){endDrag();render()}
+function onUp(e){
+  const d=DRAG;if(!d)return;
+  if(d.kind==='wire'){
+    const el=document.elementFromPoint(e.clientX,e.clientY), g=el&&el.closest('[data-item]');
+    const b=cur(), tg=g&&b.items.find(i=>i.id===g.dataset.item);
+    endDrag();
+    if(tg&&tg.t==='id'){mutate(()=>{const it=b.items.find(i=>i.id===d.id);const fm=feedMap({...b,items:b.items.map(i=>i.id===it.id?{...i,feed:null}:i)});it.feed=fm[it.id].by===tg.id?null:tg.id;SEL=it.id});toast('Câblé sur '+idName(cur(),cur().items.find(i=>i.id===tg.id)))}
+    else if(tg&&tg.id===d.id){mutate(()=>{tg.feed=null});toast('Retour au peigne')}
+    else{render();toast('Relâche le fil sur un interrupteur différentiel')}
+    return;
+  }
+  if(!d.moved){endDrag();if(d.from){SEL=d.it.id;PTAB='elem';render()}else{tapAdd(d)}return}
+  const t=d.t;endDrag();
+  if(t&&!t.bad){
+    mutate(()=>{const b=cur();let it;if(d.from){it=b.items.find(i=>i.id===d.it.id);it.row=t.row;it.col=t.col;if(it.t!=='id')it.feed=null}else{it=d.it;it.row=t.row;it.col=t.col;b.items.push(it)}SEL=it.id;PTAB='elem'});
+    const el=document.querySelector(`[data-item="${SEL}"]`);if(el){el.classList.add('pop');el.style.transformBox='fill-box';el.style.transformOrigin='center'}
+    if(!d.from)toast(d.label?`${d.label} ajouté`:'Ajouté');
+  }else if(t&&t.bad){render();toast('Plus de place sur cette rangée : ajoute une rangée ou libère des modules')}
+  else if(d.from){const keep=JSON.stringify(S);mutate(()=>{const b=cur();b.items=b.items.filter(i=>i.id!==d.it.id);SEL=null});toast('Retiré du tableau',()=>{S=JSON.parse(keep);commit()})}
+  else render();
+}
+function tapAdd(d){
+  const b=cur(),w=W[d.it.t];
+  for(let r=0;r<b.rows;r++)for(let c=0;c+w<=b.mpr;c++)if(free(b,r,c,w)){mutate(()=>{d.it.row=r;d.it.col=c;b.items.push(d.it);SEL=d.it.id;PTAB='elem'});toast(`${d.label||'Module'} ajouté rangée ${r+1}. Déplace-le si besoin.`);return}
+  toast('Tableau plein : ajoute une rangée');
+}
+
+/* ================= Événements ================= */
+$('#palette').addEventListener('pointerdown',e=>{const t=e.target.closest('[data-tile]');if(!t||e.button>0)return;const it=tileItem(t.dataset.tile);startDrag(e,{it,from:false,label:t.querySelector('b').textContent})});
+$('#boardwrap').addEventListener('pointerdown',e=>{
+  if(e.button>0)return;
+  const wh=e.target.closest('[data-wire]');
+  if(wh){const b=cur(),it=b.items.find(i=>i.id===wh.dataset.wire),p=pos(it);startDrag(e,{kind:'wire',id:it.id,x:p.x+MOD/2,y:p.y-38});return}
+  const g=e.target.closest('[data-item]');
+  if(g){const it=cur().items.find(i=>i.id===g.dataset.item);startDrag(e,{it,from:true,label:itemName(it)});return}
+  if(SEL){SEL=null;render()}
+});
+$('#tabs').addEventListener('click',e=>{
+  const t=e.target.closest('[data-board]');if(t){S.cur=t.dataset.board;SEL=null;DELB=null;commit();return}
+  if(e.target.id==='addDiv')mutate(()=>{
+    const n=S.boards.filter(b=>b.kind==='div').length+1;const D=newBoard('Divisionnaire '+n,'div');
+    D.items.push(Object.assign(mkItem('sect'),{row:0,col:0}),Object.assign(mkItem('id',{cal:40,type:'AC'}),{row:0,col:2}));
+    S.boards.push(D);const P0=principal(S);const f=mkCirc('div',{label:'Départ '+D.name});f.c.board=D.id;
+    let ok=false;for(let r=0;r<P0.rows&&!ok;r++)for(let c=0;c<P0.mpr&&!ok;c++)if(free(P0,r,c,1)){f.row=r;f.col=c;ok=true}
+    if(!ok){P0.rows++;f.row=P0.rows-1;f.col=0}
+    P0.items.push(f);S.cur=D.id;SEL=null;toast('Tableau divisionnaire créé, avec son départ dans le tableau principal');
+  });
+});
+$('#boardbar').addEventListener('click',e=>{
+  const r=e.target.closest('[data-rows]');
+  if(r){const b=cur(),d=+r.dataset.rows;if(d<0&&b.rows<=1)return;if(d<0&&b.items.some(i=>i.row>=b.rows-1)){toast('La dernière rangée n’est pas vide');return}mutate(()=>{b.rows=Math.min(8,b.rows+d)});return}
+  if(e.target.id==='delBoard'){const b=cur();if(DELB!==b.id){DELB=b.id;renderTabs();return}
+    mutate(()=>{S.boards=S.boards.filter(x=>x.id!==b.id);S.boards.forEach(x=>x.items=x.items.filter(i=>!(i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id)));S.cur=principal(S).id;DELB=null});toast('Tableau supprimé')}
+});
+$('#boardbar').addEventListener('change',e=>{
+  const b=cur();
+  if(e.target.id==='bName')mutate(()=>{b.name=e.target.value.trim()||b.name});
+  if(e.target.id==='bMpr')mutate(()=>{b.mpr=+e.target.value;if(b.items.some(i=>i.col+W[i.t]>b.mpr)){optimise(S,b);toast('Tableau rangé pour tenir en '+b.mpr+' modules')}});
+  if(e.target.id==='bBrand')mutate(()=>{S.brand=e.target.value;renderPalette()});
+});
+$('#ptabs').addEventListener('click',e=>{const t=e.target.closest('[data-ptab]');if(t){PTAB=t.dataset.ptab;renderPanel()}});
+$('#pbody').addEventListener('click',e=>{
+  const is=e.target.closest('.issue');
+  if(is&&!e.target.closest('button')){is.classList.toggle('open');const id=is.dataset.issue,bid=is.dataset.ib;
+    if(id){const f=findItem(id);if(f){if(S.cur!==f.b.id){S.cur=f.b.id;save()}SEL=id;renderTabs();renderBoard();
+      const el=document.querySelector(`[data-item="${id}"]`);el&&el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'})}}
+    else if(bid&&S.cur!==bid&&boardOf(S,bid)){S.cur=bid;save();renderTabs();renderBoard()}
+    return}
+  const a=e.target.closest('[data-act]');if(!a)return;
+  const act=a.dataset.act;
+  if(act==='copyList'){const {list}=needs();const txt=list.map(x=>{const m=Math.max(0,x.n-(+(S.stock[x.k]||0)));return m?`${m} × ${x.name}`:null}).filter(Boolean).join('\n')||'Rien à acheter';copy(txt);return}
+  const f=findItem(SEL);if(!f)return;const {b,it}=f;
+  if(act==='auto')mutate(()=>{Object.assign(it.c,recommend(it.c,S))});
+  if(act==='open'){S.cur=it.c.board;SEL=null;commit()}
+  if(act==='del')mutate(()=>{b.items=b.items.filter(i=>i.id!==it.id);SEL=null});
+  if(act==='dup'){const w=W[it.t];let spot=null;for(let r=0;r<b.rows&&!spot;r++)for(let c=0;c+w<=b.mpr&&!spot;c++)if(free(b,r,c,w))spot={r,c};
+    if(!spot){toast('Plus de place : ajoute une rangée');return}
+    mutate(()=>{const n=clone(it);n.id=uid();n.row=spot.r;n.col=spot.c;n.feed=null;if(n.c&&n.c.label)n.c.label+=' bis';b.items.push(n);SEL=n.id})}
+});
+$('#pbody').addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.stock!==undefined){mutate(()=>{S.stock[el.dataset.stock]=Math.max(0,+el.value||0)});return}
+  if(el.dataset.p){mutate(()=>{let v=el.value;if(el.dataset.num)v=+v;if(el.dataset.p==='foudre')v=v==='1';S[el.dataset.p]=v});return}
+  const f=el.dataset.f&&findItem(SEL);if(!f)return;const {it}=f;
+  mutate(()=>{
+    let v=el.value;if(el.dataset.num||el.type==='number')v=+v;
+    const path=el.dataset.f.split('.');
+    if(path[0]==='c'){
+      const key=path[1];
+      if(key==='k'){const old=CIRC[it.c.k];const wasDefault=!it.c.label||it.c.label===old.n;it.c.k=v;const sp=CIRC[v];if(wasDefault)it.c.label=sp.n;it.c.p=sp.p;if(sp.cnt&&!it.c.n)it.c.n=v==='eclairage'?4:6;Object.assign(it.c,recommend({...it.c,cal:sp.cal,sec:sp.sec},S))}
+      else{it.c[key]=v;if(key==='p'&&CIRC[it.c.k].ptab){const r=recommend(it.c,S);if(it.c.cal<it.c.p/230)Object.assign(it.c,r)}}
+    }else if(path[0]==='feed')it.feed=v||null;
+    else it[path[0]]=v;
+  });
+});
+$('#bOpt').addEventListener('click',()=>{mutate(()=>{optimise(S,cur());SEL=null});toast('Rangé : circuits répartis, type A où il faut, 8 max par différentiel, 20 % de réserve')});
+$('#bUndo').addEventListener('click',undo);
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();undo()}
+  if((e.key==='Delete'||e.key==='Backspace')&&SEL&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();const f=findItem(SEL);if(f)mutate(()=>{f.b.items=f.b.items.filter(i=>i.id!==SEL);SEL=null})}
+  if(e.key==='Escape'){closeModal()}
+});
+
+/* ================= Toast, modales ================= */
+let TT=null;
+function toast(msg,undoFn){clearTimeout(TT);let t=$('.toast');if(!t){t=document.createElement('div');t.className='toast';t.setAttribute('role','status');document.body.appendChild(t)}
+  t.innerHTML=esc(msg)+(undoFn?' <button type="button">Annuler</button>':'');if(undoFn)t.querySelector('button').onclick=()=>{undoFn();t.remove()};TT=setTimeout(()=>t.remove(),undoFn?5000:2600)}
+function copy(txt){const done=()=>toast('Copié');try{navigator.clipboard.writeText(txt).then(done,()=>fallback())}catch(e){fallback()}
+  function fallback(){openModal(`<h2>Copier</h2><p class="hint">Sélectionne le texte et copie-le.</p><textarea id="cpy">${esc(txt)}</textarea><div class="row-btns"><button class="btn" type="button" data-close>Fermer</button></div>`);$('#cpy').select()}}
+function openModal(html){closeModal();const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" role="dialog" aria-modal="true">${html}</div>`;m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-close]'))closeModal()});document.body.appendChild(m);return m}
+function closeModal(){const m=$('.modal');m&&m.remove()}
+$('#bGen').addEventListener('click',()=>{
+  const h={...DEFAULT_HOME,...(S.home||{}),name:S.name,surf:S.surf,tarif:S.tarif,foudre:S.foudre,brand:S.brand};
+  const ck=(k,l)=>`<label><input type="checkbox" id="h-${k}" ${h[k]?'checked':''}> ${l}</label>`;
+  const m=openModal(`<h2>Mon logement</h2><p class="hint">Réponds à quelques questions : je crée le tableau complet, conforme, que tu pourras modifier ensuite. Ça remplace le tableau actuel (tu peux annuler).</p>
+  <form id="hf"><div class="grid2">
+  <label class="field"><span>Nom</span><input id="h-name" type="text" value="${esc(h.name)}"></label>
+  <label class="field"><span>Surface (m²)</span><input id="h-surf" type="number" min="10" value="${h.surf}"></label>
+  <label class="field"><span>Chambres</span><input id="h-ch" type="number" min="0" max="10" value="${h.ch}"></label>
+  <label class="field"><span>Salles de bain</span><input id="h-sdb" type="number" min="0" max="5" value="${h.sdb}"></label>
+  <label class="field"><span>Tarif</span><select id="h-tarif">${sel(['hc','base'],h.tarif,x=>x==='hc'?'Heures creuses':'Base')}</select></label>
+  <label class="field"><span>Marque</span><select id="h-brand">${Object.entries(BR).map(([k,v])=>`<option value="${k}" ${h.brand===k?'selected':''}>${v.name}</option>`).join('')}</select></label>
+  <label class="field"><span>Chauffage élec. (W)</span><input id="h-chauf" type="number" min="0" step="500" value="${h.chauf}"></label>
+  <label class="field"><span>Recharge voiture</span><select id="h-ve">${sel(['none','prv','irve'],h.ve,x=>({none:'Non',prv:'Prise renforcée',irve:'Borne 7,4 kW'}[x]))}</select></label>
+  <label class="field"><span>Clims (nombre)</span><input id="h-climN" type="number" min="0" max="6" value="${h.climN}"></label>
+  <label class="field"><span>W absorbés / clim</span><input id="h-climW" type="number" min="0" step="50" value="${h.climW}"></label>
+  </div>
+  <div class="checks">${ck('plaque','Plaque de cuisson')}${ck('four','Four')}${ck('ll','Lave-linge')}${ck('lv','Lave-vaisselle')}${ck('sl','Sèche-linge')}${ck('congel','Congélateur')}${ck('ce','Chauffe-eau électrique')}${ck('pac','Pompe à chaleur')}${ck('vmc','VMC')}${ck('volets','Volets roulants')}${ck('ext','Extérieur / portail')}${ck('foudre','Zone foudre (parafoudre)')}${ck('div','Divisionnaire garage')}</div>
+  <div class="row-btns"><button class="btn primary" type="submit">Créer mon tableau</button><button class="btn" type="button" id="hEmpty">Partir d’un tableau vide</button><button class="btn" type="button" data-close>Fermer</button></div></form>`);
+  $('#hf',m).addEventListener('submit',e=>{e.preventDefault();const g=id=>$('#h-'+id,m);
+    const H={};['name','tarif','brand','ve'].forEach(k=>H[k]=g(k).value);['surf','ch','sdb','chauf','climN','climW'].forEach(k=>H[k]=+g(k).value||0);
+    ['plaque','four','ll','lv','sl','congel','ce','pac','vmc','volets','ext','foudre','div'].forEach(k=>H[k]=g(k).checked);
+    mutate(()=>{S=generate(H);SEL=null});closeModal();renderPalette();toast('Tableau créé et vérifié')});
+  $('#hEmpty',m).addEventListener('click',()=>{mutate(()=>{const P=generate({...h,name:'Nouveau projet'});const B=principal(P);B.items=[];B.rows=2;P.boards=[B];P.cur=B.id;S=P;SEL=null});closeModal();toast('Tableau vide : glisse un différentiel puis des disjoncteurs')});
+});
+$('#bIO').addEventListener('click',()=>{
+  const m=openModal(`<h2>Sauver / charger</h2><p class="hint">Ton projet est enregistré automatiquement dans ce navigateur. Pour le garder ailleurs ou l’envoyer à quelqu’un, copie ce texte. Pour charger un projet, colle son texte ici.</p>
+  <textarea id="io">${esc(JSON.stringify(S))}</textarea><div class="row-btns"><button class="btn primary" type="button" id="ioCopy">Copier</button><button class="btn" type="button" id="ioLoad">Charger ce texte</button><button class="btn" type="button" data-close>Fermer</button></div>`);
+  $('#ioCopy',m).onclick=()=>copy($('#io',m).value);
+  $('#ioLoad',m).onclick=()=>{try{const P=JSON.parse($('#io',m).value);if(!P.boards||!P.boards.length)throw 0;mutate(()=>{S=P;S.stock=S.stock||{};SEL=null});closeModal();renderPalette();toast('Projet chargé')}catch(e){toast('Ce texte n’est pas un projet Tableau Malin valide')}};
+});
+
+renderPalette();render();
+</script>
