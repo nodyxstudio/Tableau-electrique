@@ -1,14 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" role="img" aria-label="Chouette Tableau">
   <rect width="130" height="130" rx="28" fill="#10131a"/>
-  <!-- tête de chouette -->
-  <path d="M65 20c-25 0-41 16-41 41v21c0 17 18 29 41 29s41-12 41-29V61c0-25-16-41-41-41z" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linejoin="round"/>
-  <!-- sourcils en V -->
-  <path d="M32 42 L65 54 L98 42" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- yeux : deux boutons « test » de différentiel -->
-  <circle cx="47" cy="65" r="13" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
-  <circle cx="83" cy="65" r="13" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
-  <circle cx="47" cy="65" r="5.5" fill="#3ddc97"/>
-  <circle cx="83" cy="65" r="5.5" fill="#3ddc97"/>
-  <!-- bec : éclair -->
-  <path d="M70 74 L56 92 L64 92 L60 103 L76 86 L68 86 Z" fill="#ffc531" stroke="#10131a" stroke-width="3" stroke-linejoin="round"/>
+  <!-- corps tout rond de la chouette, avec deux petites oreilles douces -->
+  <path d="M30 40 Q30 24 44 28 Q65 18 86 28 Q100 24 100 40 Q110 58 108 80 Q104 112 65 112 Q26 112 22 80 Q20 58 30 40 Z" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- sourcils relevés : air content -->
+  <path d="M34 50 Q46 40 58 48" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M72 48 Q84 40 96 50" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- grands yeux ronds avec un reflet -->
+  <circle cx="47" cy="64" r="12" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
+  <circle cx="83" cy="64" r="12" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
+  <circle cx="47" cy="65" r="6" fill="#3ddc97"/>
+  <circle cx="83" cy="65" r="6" fill="#3ddc97"/>
+  <circle cx="49.5" cy="62.5" r="2" fill="#10131a"/>
+  <circle cx="85.5" cy="62.5" r="2" fill="#10131a"/>
+  <!-- petit bec souriant -->
+  <path d="M59 77 Q65 74 71 77 L65 85 Z" fill="#ffc531" stroke="#ffc531" stroke-width="2" stroke-linejoin="round"/>
+  <!-- éclair sur le ventre -->
+  <path d="M68 90 L58 101 L64 101 L61 108 L72 97 L66 97 Z" fill="#ffc531"/>
 </svg>
