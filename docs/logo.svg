@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" role="img" aria-label="Chouette Tableau">
   <rect width="130" height="130" rx="28" fill="#10131a"/>
-  <!-- tête de chouette : contour arrondi sans aigrettes -->
-  <path d="M65 22c-24 0-40 16-40 40v20c0 17 18 28 40 28s40-11 40-28V62c0-24-16-40-40-40z" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- tête de chouette -->
+  <path d="M65 20c-25 0-41 16-41 41v21c0 17 18 29 41 29s41-12 41-29V61c0-25-16-41-41-41z" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- sourcils en V -->
+  <path d="M32 42 L65 54 L98 42" fill="none" stroke="#3ddc97" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- yeux : deux boutons « test » de différentiel -->
-  <circle cx="48" cy="63" r="15" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
-  <circle cx="82" cy="63" r="15" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
-  <circle cx="48" cy="63" r="6" fill="#3ddc97"/>
-  <circle cx="82" cy="63" r="6" fill="#3ddc97"/>
+  <circle cx="47" cy="65" r="13" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
+  <circle cx="83" cy="65" r="13" fill="none" stroke="#3ddc97" stroke-width="3.5"/>
+  <circle cx="47" cy="65" r="5.5" fill="#3ddc97"/>
+  <circle cx="83" cy="65" r="5.5" fill="#3ddc97"/>
   <!-- bec : éclair -->
-  <path d="M69 72 L58 88 L65 88 L61 102 L74 84 L67 84 Z" fill="#ffc531" stroke="#10131a" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M70 74 L56 92 L64 92 L60 103 L76 86 L68 86 Z" fill="#ffc531" stroke="#10131a" stroke-width="3" stroke-linejoin="round"/>
 </svg>
