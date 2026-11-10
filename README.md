@@ -1,6 +1,23 @@
-# Tableau Malin
+<h1 align="center">Tableau Malin</h1>
 
-Outil web pour concevoir des tableaux électriques résidentiels conformes à la **NF C 15-100**, en glisser-déposer.
+<p align="center">
+  <b>Dessine ton tableau électrique en glissant les disjoncteurs.<br>Il vérifie la norme NF C 15-100 au fur et à mesure.</b>
+</p>
+
+<p align="center">
+  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><b>▶ Ouvrir Tableau Malin</b></a>
+  · gratuit · sans compte · rien à installer
+</p>
+
+<p align="center">
+  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><img src="docs/apercu.png" alt="Un tableau électrique dessiné dans Tableau Malin, avec le contrôle NF C 15-100" width="900"></a>
+</p>
+
+---
+
+Tu glisses un four, une clim ou des prises sur une rangée : le bon disjoncteur et la bonne section de câble sont choisis tout seuls. À droite, le contrôle te dit ce que le Consuel refuserait, pourquoi, et propose de corriger en un clic.
+
+## Ce qu’il fait
 
 - **Glisser-déposer** : un appareil (four, clim, prises…) déposé sur une rangée devient un disjoncteur, avec le bon calibre et la bonne section de câble.
 - **Câblage** : un disjoncteur posé à droite d’un interrupteur différentiel est alimenté par le peigne. On peut aussi tirer un fil depuis le rond au-dessus du disjoncteur jusqu’à un différentiel.
