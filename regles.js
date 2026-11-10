@@ -1,4 +1,4 @@
-/* Tableau Malin · règles NF C 15-100 (logement)
+/* Chouette Tableau · règles NF C 15-100 (logement)
  * Données de référence, calculs, rangement automatique et vérification.
  * Aucun accès au DOM : ce fichier est chargé par la page et testé avec Node (npm test). */
 "use strict";

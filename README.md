@@ -1,16 +1,18 @@
-<h1 align="center">Tableau Malin</h1>
+<p align="center"><img src="docs/logo.svg" alt="" width="96"></p>
+
+<h1 align="center">Chouette Tableau</h1>
 
 <p align="center">
   <b>Dessine ton tableau électrique en glissant les disjoncteurs.<br>Il vérifie la norme NF C 15-100 au fur et à mesure.</b>
 </p>
 
 <p align="center">
-  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><b>▶ Ouvrir Tableau Malin</b></a>
+  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><b>▶ Ouvrir Chouette Tableau</b></a>
   · gratuit · sans compte · rien à installer
 </p>
 
 <p align="center">
-  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><img src="docs/apercu.png" alt="Un tableau électrique dessiné dans Tableau Malin, avec le contrôle NF C 15-100" width="900"></a>
+  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><img src="docs/apercu.png" alt="Un tableau électrique dessiné dans Chouette Tableau, avec le contrôle NF C 15-100" width="900"></a>
 </p>
 
 ---
