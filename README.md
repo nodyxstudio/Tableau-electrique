@@ -17,6 +17,11 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
 - **Guide des différentiels AC / A / F / B** selon les appareils (clim, PAC, induction, lave-linge, recharge…).
 - **Réglage rapide** : choisir le calibre adapte la section du câble, et inversement. La liste « Circuits » sous le tableau permet de tout modifier d’un coup.
 - **« Ranger »** compacte le tableau sans changer tes différentiels. **« Optimiser tout »** répartit tous les circuits selon les règles. Les flèches du clavier déplacent le module sélectionné.
+- **Bulle au survol** : passer la souris sur un disjoncteur affiche où il va (pièce, étage, tableau), sa protection, sa puissance et le différentiel qui l’alimente.
+- **Étages** : chaque circuit a un étage et une pièce. Conseils si l’éclairage et les prises d’un étage dépendent du même différentiel, ou s’il vaut mieux un divisionnaire à l’étage.
+- **Couleurs par différentiel** : chaque différentiel et les disjoncteurs qu’il protège partagent une couleur. Les problèmes proposent une correction en un clic.
+- **Câble d’arrivée** au choix (10, 16 ou 25 mm²), avec contrôle par rapport au réglage de l’AGCP.
+- **Appareils** : réfrigérateur, cave à vin, micro-ondes, hotte, cuisinière, sèche-serviettes, plancher chauffant, ballon thermodynamique, chaudière, piscine, spa, portail, alarme, aspiration centralisée, pompe…
 - **Matériel** : gammes Schneider (Resi9) ou Legrand (DX³), liste d’achat selon ton stock.
 - **Assistant « Créer depuis mon logement »** : génère un tableau complet et conforme à partir de quelques questions.
 - **Manipulation** : toucher un module ouvre une barre Régler / Dupliquer / Supprimer. On peut aussi glisser un module vers la corbeille. Un module lâché entre deux autres s'insère et décale la rangée.

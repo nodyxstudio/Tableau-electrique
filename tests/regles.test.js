@@ -51,8 +51,8 @@ test('prises : 5 socles en 1,5 mm², 12 en 2,5 mm²', () => {
 });
 
 test('plaque et lave-linge exigent un différentiel type A', () => {
-  assert.ok(has(projet([disj('plaque', { label: 'Plaque' })], { type: 'AC' }).P, /type A \(ou F\), pas AC/));
-  assert.ok(!has(projet([disj('plaque', { label: 'Plaque' })], { type: 'A' }).P, /pas AC/));
+  assert.ok(has(projet([disj('plaque', { label: 'Plaque' })], { type: 'AC' }).P, /type AC : il faut un type A/));
+  assert.ok(!has(projet([disj('plaque', { label: 'Plaque' })], { type: 'A' }).P, /il faut un type A/));
 });
 
 test('un disjoncteur sans différentiel 30 mA est refusé', () => {
@@ -116,4 +116,60 @@ test('abonnement conseillé cohérent', () => {
   const P = R.generate(R.DEFAULT_HOME);
   assert.ok(R.KVA.includes(R.suggestKva(P)));
   assert.ok(R.demand(P) <= R.suggestKva(P) * 1000);
+});
+
+test('tous les appareils sont dans la palette', () => {
+  const inGroups = new Set(R.GROUPS.flatMap(g => g[1]));
+  for (const k of Object.keys(R.CIRC)) if (k !== 'div') assert.ok(inGroups.has(k), k);
+  assert.ok(R.CIRC.frigo && R.CIRC.piscine && R.CIRC.seche);
+});
+
+test('clim derrière un type AC : conseil non bloquant, avec correction en un clic', () => {
+  // Diff. 1 type AC à gauche de la clim, Diff. 2 type A 63 A à droite : la clim est sur le type AC
+  const { P, B } = projet([], { type: 'AC' });
+  const clim = disj('clim', { label: 'Clim salon', p: 900 }); clim.row = 0; clim.col = 2; B.items.push(clim);
+  const idA = Object.assign(R.mkItem('id', { cal: 63, type: 'A' }), { row: 0, col: 4 }); B.items.push(idA);
+  const w = R.analyse(P).find(i => i.item === clim.id);
+  assert.equal(w.lvl, 'warn');
+  assert.match(w.msg, /Diff\. 1 \(type AC\)/);
+  assert.equal(w.fix[0].op.to, idA.id);
+  R.applyFix(P, w.fix[0].op);
+  assert.ok(!R.analyse(P).some(i => i.item === clim.id));
+});
+
+test('la correction ne branche jamais sur le différentiel de la voiture', () => {
+  const P = R.generate(R.DEFAULT_HOME);
+  const B = R.principal(P);
+  const clim = B.items.find(i => i.t === 'disj' && i.c.k === 'clim');
+  clim.feed = R.sortedIds(B).find(d => d.type === 'AC').id;
+  const w = R.analyse(P).find(i => i.item === clim.id);
+  R.applyFix(P, w.fix[0].op);
+  assert.deepEqual(R.analyse(P).filter(i => i.lvl === 'err').map(e => e.msg), []);
+});
+
+test('câble d’arrivée : 10 mm² jusqu’à 12 kVA, au-delà il faut 16 mm²', () => {
+  const P = R.generate(R.DEFAULT_HOME);
+  P.kva = 12; P.arr = 10;
+  assert.ok(!has(P, /Câble d’arrivée/));
+  P.kva = 18;
+  const e = R.analyse(P).find(i => /Câble d’arrivée 10 mm²/.test(i.msg));
+  assert.equal(e.lvl, 'err');
+  R.applyFix(P, e.fix[0].op);
+  assert.equal(R.arrSec(P), 16);
+  assert.ok(!has(P, /Câble d’arrivée/));
+});
+
+test('maison à étage : circuits rangés par étage et bien répartis', () => {
+  const P = R.generate({ ...R.DEFAULT_HOME, niveaux: 2 });
+  const B = R.principal(P);
+  const et = new Set(B.items.filter(i => i.t === 'disj' && i.c.k === 'eclairage').map(i => i.c.etage));
+  assert.ok(et.has('RDC') && et.has('Étage 1'));
+  assert.deepEqual(errs(P).map(e => e.msg), []);
+  assert.ok(!has(P, /l’éclairage et les prises sont tous sur le même différentiel/));
+});
+
+test('conseil si éclairage et prises d’un étage sont sur le même différentiel', () => {
+  const e = disj('eclairage', { label: 'É', n: 3, etage: 'Étage 1' });
+  const pc = disj('prises', { label: 'P', n: 4, etage: 'Étage 1' });
+  assert.ok(has(projet([e, pc]).P, /Étage 1 : l’éclairage et les prises/));
 });
