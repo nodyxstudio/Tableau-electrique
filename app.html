@@ -65,6 +65,25 @@ button,input,select,textarea{font:inherit;color:inherit}
 .palette summary{font-family:var(--f-display);font-size:16px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;padding:4px 0;color:var(--muted)}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-block:8px}
 .tile{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:8px 6px;text-align:center;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:3px 9px;font-family:var(--f-mono);font-size:12.5px;cursor:pointer;color:var(--ink)}
+.chip.rec{border-color:var(--ok);color:var(--ok);font-weight:700}
+.chip.bad{text-decoration:line-through;opacity:.5}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink);opacity:1;text-decoration:none}
+.chip.on.bad{background:var(--err);border-color:var(--err);color:#fff}
+.field.wide{grid-template-columns:minmax(0,1fr)}
+.typeline{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:6px 0 10px;padding:8px 10px;border-radius:8px;background:var(--surface-2)}
+.typeline b.t{font-family:var(--f-mono);border-radius:5px;padding:1px 6px;flex:none}
+.typeline b.t.good{background:var(--ok-soft);color:var(--ok)} .typeline b.t.bad{background:var(--err-soft);color:var(--err)} .typeline b.t.mid{background:var(--warn-soft);color:var(--warn)}
+.clist{padding:12px}
+.clhead{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;margin-bottom:6px}
+.clhead h3{font-family:var(--f-display);font-size:19px;margin:0}
+.ctab input[type=text]{width:100%;min-width:120px}
+.ctab input,.ctab select{border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:4px 5px;color:var(--ink);font-size:13px}
+.ctab input[type=number]{width:70px}
+.ctab tr.sel td{background:var(--accent-soft)}
+.dot{width:16px;height:16px;border-radius:50%;border:0;cursor:pointer;display:block}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)}
 .tile:hover{border-color:var(--accent);background:var(--accent-soft)}
 .tile .ic{font-size:26px;line-height:1.1}
 .tile svg{height:58px;width:auto}
@@ -171,7 +190,8 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
   <nav class="tabs" id="tabs" aria-label="Tableaux"></nav>
   <div class="actions">
     <button class="btn primary" id="bGen" type="button">Créer depuis mon logement</button>
-    <button class="btn" id="bOpt" type="button" title="Range et répartit les circuits selon les règles">Ranger tout seul</button>
+    <button class="btn" id="bTidy" type="button" title="Range les modules sans changer tes différentiels">Ranger</button>
+    <button class="btn" id="bOpt" type="button" title="Répartit tous les circuits selon les règles">Optimiser tout</button>
     <button class="btn" id="bUndo" type="button" title="Annuler (Ctrl+Z)">Annuler</button>
     <button class="btn" id="bIO" type="button">Sauver / charger</button>
   </div>
@@ -186,8 +206,9 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
       <span><i style="background:var(--phase)"></i>Phase</span>
       <span><i style="background:var(--neutre)"></i>Neutre</span>
       <span><i style="background:repeating-linear-gradient(90deg,var(--terre) 0 5px,var(--m-yellow) 5px 10px)"></i>Terre</span>
-      <span>Glisse un module hors du tableau pour le retirer. Tire le petit rond au-dessus d’un disjoncteur jusqu’à un différentiel pour le câbler.</span>
+      <span>Glisse un module hors du tableau pour le retirer. Tire le petit rond au-dessus d’un disjoncteur jusqu’à un différentiel pour le câbler. Flèches du clavier : déplacer le module choisi.</span>
     </div>
+    <div class="card clist" id="clist"></div>
   </section>
   <aside class="card panel" id="panel">
     <div class="score" id="score"></div>
@@ -237,6 +258,24 @@ const BR={
   schneider:{name:'Schneider Electric',gD:'Resi9 XE',gI:'Resi9 XE',gC:'Resi9',short:'Resi9',lever:'#22302a',stripe:'#3a9a5b'},
   legrand:{name:'Legrand',gD:'DX³',gI:'DX³-ID',gC:'Drivia',short:'DX³',lever:'#454c5a',stripe:'#98a1b0'}
 };
+const TY={eclairage:'AC',prises:'AC',cuisine:'AC',plaque:'A!',four:'AC',ll:'A!',lv:'A',sl:'A',congel:'A',ce:'AC',chauffage:'AC',clim:'A',pac:'A',vmc:'AC',volets:'AC',irve:'A!',prv:'A!',ext:'AC',com:'AC',autre:'AC',div:'-'};
+const TYWHY={
+  plaque:'L’électronique de l’induction peut créer des fuites à composante continue. Un type AC risque de ne pas les voir et de ne pas couper.',
+  ll:'Le moteur du lave-linge est piloté par électronique : fuites à composante continue possibles.',
+  irve:'La recharge crée des fuites continues. Type A si la borne détecte elle-même le courant continu 6 mA, sinon type B. Un différentiel par point de charge.',
+  prv:'La recharge crée des fuites continues. Un différentiel type A (ou F) rien que pour elle.',
+  clim:'Compresseur à variateur (inverter). Type A conseillé, type F si la notice le demande : il résiste mieux aux coupures intempestives.',
+  pac:'Compresseur à variateur (inverter). Type A conseillé, type F si la notice le demande.',
+  lv:'Pompes et moteurs souvent pilotés électroniquement. Le type AC est admis, le type A est plus sûr.',
+  sl:'Les modèles récents (pompe à chaleur) ont un moteur à variateur. Le type A est plus sûr.',
+  congel:'Les compresseurs récents sont souvent à variateur. Le type A est plus sûr.'};
+const IDGUIDE=[
+  ['Éclairage, prises, chauffage électrique, chauffe-eau, four, VMC, volets','AC','Courant alternatif classique. Le type AC suffit, le type A convient aussi.'],
+  ['Plaque de cuisson, lave-linge','A obligatoire',TYWHY.plaque],
+  ['Recharge de voiture (prise renforcée, borne)','A ou F, seul',TYWHY.irve],
+  ['Climatisation, pompe à chaleur','A conseillé (F selon notice)',TYWHY.clim],
+  ['Lave-vaisselle, sèche-linge, congélateur récents','A conseillé',TYWHY.lv],
+  ['Appareils triphasés à variateur','B','Fuites en courant continu lisse : seul le type B les détecte.']];
 const KEY='tableau-malin-v1';
 const SIMUL=0.7; // simultanéité globale du logement pour l'abonnement
 
@@ -288,7 +327,7 @@ function generate(h){
   if(h.div){
     const D=newBoard('Garage','div');P.boards.push(D);
     D.items.push(mkItem('sect'),mkCirc('eclairage',{label:'Écl. garage',n:3,p:300}),mkCirc('prises',{label:'PC garage',n:4}),mkCirc('prises',{label:'PC atelier',n:3}));
-    const f=mkCirc('div',{label:'Départ garage'});f.c.board=D.id;B.items.push(f);
+    const f=mkCirc('div',{label:'Départ garage'});f.c.board=D.id;f.feed='head';B.items.push(f);
     optimise(P,D);Object.assign(f.c,recommend(f.c,P));
   }
   optimise(P,B);
@@ -320,6 +359,7 @@ function feedMap(b){
   const m={},ids=b.items.filter(i=>i.t==='id');
   for(const it of b.items){
     if(it.t==='id'||it.t==='sect'||it.t==='para'){m[it.id]={by:null,via:'head'};continue}
+    if(it.feed==='head'){m[it.id]={by:null,via:'direct'};continue}
     if(it.feed&&ids.some(d=>d.id===it.feed)){m[it.id]={by:it.feed,via:'fil'};continue}
     let best=null;for(const d of ids)if(d.row===it.row&&d.col<it.col&&(!best||d.col>best.col))best=d;
     m[it.id]=best?{by:best.id,via:'peigne'}:{by:null,via:'direct'};
@@ -369,21 +409,32 @@ function optimise(P,b){
   });
   conts.forEach(ct=>{const bn=finalBins.find(x=>x.list.some(i=>i.c.k==='ce'));if(bn){const k=bn.list.findIndex(i=>i.c.k==='ce');bn.list.splice(k+1,0,ct)}else if(finalBins[0])finalBins[0].list.push(ct)});
   tls.forEach(t=>{const bn=finalBins.find(x=>x.list.some(i=>i.t==='disj'&&i.c.k==='eclairage'))||finalBins[0];if(bn)bn.list.push(t)});
+  layout(b,[...head,...feeds],finalBins.map((bn,bi)=>({id:bn.id,list:bi===finalBins.length-1?[...bn.list,...prises]:bn.list})),finalBins.length?[]:prises);
+}
+function layout(b,direct,groups,extra=[]){
   const M=b.mpr;let row=0,col=0;
   const at=it=>{const w=W[it.t];if(col+w>M){row++;col=0}it.row=row;it.col=col;col+=w};
-  head.forEach(i=>{i.feed=null;at(i)});
-  feeds.forEach(i=>{i.feed=null;at(i)});
-  if(!finalBins.length)prises.forEach(i=>{i.feed=null;at(i)});
-  finalBins.forEach((bn,bi)=>{
-    const grp=[bn.id,...bn.list];if(bi===finalBins.length-1)grp.push(...prises);
-    const w=grp.reduce((a,i)=>a+W[i.t],0);
-    if(col>0&&col+w>M){row++;col=0}
-    grp.forEach((it,k)=>{at(it);it.feed=(k>0&&it.row!==bn.id.row)?bn.id.id:null});
-  });
-  b.items=[...new Set([...head,...feeds,...finalBins.flatMap(bn=>[bn.id,...bn.list]),...prises])];
+  direct.forEach(i=>{if(i.feed!=='head')i.feed=null;at(i)});
+  extra.forEach(i=>{i.feed=null;at(i)});
+  groups.forEach(g=>{const grp=[g.id,...g.list];const w=grp.reduce((a,i)=>a+W[i.t],0);if(col>0&&col+w>M){row++;col=0}
+    grp.forEach((it,k)=>{at(it);if(k>0)it.feed=it.row!==g.id.row?g.id.id:null})});
+  b.items=[...new Set([...direct,...extra,...groups.flatMap(g=>[g.id,...g.list])])];
   const used=col===0&&row>0?row:row+1;let rows=Math.max(1,used);
   const um=usedMods(b);while((rows*M-um)/(rows*M)<0.2)rows++;
   b.rows=Math.min(rows,8);
+}
+/* Ranger sans changer les choix : chaque différentiel garde ses circuits */
+function tidy(P,b){
+  const fm=feedMap(b), byPos=(a,c)=>a.row-c.row||a.col-c.col;
+  const direct=b.items.filter(i=>i.t!=='id'&&!fm[i.id].by).sort((a,c)=>(a.t==='sect'?0:a.t==='para'?1:2)-(c.t==='sect'?0:c.t==='para'?1:2)||byPos(a,c));
+  const groups=sortedIds(b).map(d=>({id:d,list:b.items.filter(i=>fm[i.id].by===d.id).sort(byPos)}));
+  layout(b,direct,groups);
+}
+function attachDiv(it){
+  if(!(it.t==='disj'&&it.c.k==='div')||it.c.board)return;
+  const n=S.boards.filter(b=>b.kind==='div').length+1, D=newBoard('Divisionnaire '+n,'div');
+  D.rows=1;D.items.push(Object.assign(mkItem('sect'),{row:0,col:0}),Object.assign(mkItem('id',{cal:40,type:'A'}),{row:0,col:2}));
+  S.boards.push(D);it.c.board=D.id;it.c.label='Départ '+D.name;
 }
 
 /* ================= Vérification NF C 15-100 ================= */
@@ -507,7 +558,7 @@ function renderBoard(){
   let s=`<svg id="bsvg" viewBox="0 0 ${Wd} ${Hd}" style="max-width:${Math.round(Wd*1.55)}px" role="img" aria-label="Tableau ${esc(b.name)}">`;
   s+=`<defs><linearGradient id="rail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--rail)"/><stop offset=".5" stop-color="var(--slot)"/><stop offset="1" stop-color="var(--rail)"/></linearGradient></defs>`;
   s+=`<rect x="3" y="3" width="${Wd-6}" height="${Hd-6}" rx="16" fill="var(--coffret)" stroke="var(--coffret-edge)" stroke-width="3"/>`;
-  const headTxt=b.kind==='principal'?`AGCP 500 mA · réglé ${S.kva*5} A`:(()=>{const f=principal(S).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return f?`Départ ${f.c.cal} A · ${fmt(f.c.sec)} mm²`:'Non alimenté'})();
+  const headTxt=b.kind==='principal'?`AGCP 500 mA · ${S.kva*5} A · ${S.kva>12?16:10} mm²`:(()=>{const f=principal(S).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return f?`Départ ${f.c.cal} A · ${fmt(f.c.sec)} mm²`:'Non alimenté'})();
   s+=`<g><rect x="${LEFT}" y="16" width="${Math.min(230,Wd-LEFT*2)}" height="34" rx="7" fill="var(--m-body)" stroke="var(--m-edge)"/><text x="${LEFT+12}" y="30" font-family="var(--f-body)" font-weight="700" font-size="9" letter-spacing=".08em" fill="var(--m-sub)">ARRIVÉE</text><text x="${LEFT+12}" y="43" font-family="var(--f-mono)" font-weight="700" font-size="10" fill="var(--m-ink)">${esc(headTxt)}</text></g>`;
   for(let r=0;r<b.rows;r++){
     const y0=TOP+r*ROW_H, my=y0+MOD_Y;
@@ -524,6 +575,8 @@ function renderBoard(){
       s+=`<path d="M${gx+o} 46 V${gy+o/1.5} H${tx+o} V${p.y+6}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" opacity=".9"/>`;
     });
   });
+  if(heads.length){const hs=b.kind==='principal'?(S.kva>12?16:10):((principal(S).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id)||{c:{sec:10}}).c.sec);
+    s+=`<rect x="3" y="58" width="38" height="15" rx="7.5" fill="var(--ink)"/><text x="22" y="69" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${fmt(hs)} mm²</text>`}
   // peignes
   sortedIds(b).forEach(d=>{
     const fed=b.items.filter(i=>fm[i.id].by===d.id&&fm[i.id].via==='peigne');
@@ -545,7 +598,7 @@ function renderBoard(){
     const ly=p.y+MOD_H+22;
     if(it.t==='disj'||it.t==='prise'||it.t==='cont'||it.t==='tl'){
       const cx=p.x+MOD/2;
-      if(it.t==='disj'){s+=`<path d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--phase)" stroke-width="2.6"/><path d="M${cx+6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--neutre)" stroke-width="2.6"/>`}
+      if(it.t==='disj'){const sw=Math.min(5.5,1.4+Math.sqrt(it.c.sec)).toFixed(1);s+=`<path d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--phase)" stroke-width="${sw}"/><path d="M${cx+6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--neutre)" stroke-width="${sw}"/><rect x="${cx-15}" y="${p.y+MOD_H+3}" width="30" height="14" rx="7" fill="var(--ink)"/><text x="${cx}" y="${p.y+MOD_H+13}" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${fmt(it.c.sec)}</text>`}
     }
     const l1=it.t==='disj'?(it.c.label||CIRC[it.c.k].n):it.t==='id'?idName(b,it):itemName(it);
     const l2=it.t==='disj'?`${it.c.cal} A · ${fmt(it.c.sec)} mm²`:it.t==='id'?`${it.cal} A · type ${it.type}`:'';
@@ -566,6 +619,8 @@ function renderBoard(){
     [['var(--phase)',-2.5],['var(--neutre)',2.5]].forEach(([col,o])=>{
       s+=`<path d="M${x1+o} ${y1} C${x1+o} ${y1-70} ${x2+o} ${y2+90} ${x2+o} ${y2}" fill="none" stroke="var(--coffret)" stroke-width="6" stroke-linecap="round"/><path d="M${x1+o} ${y1} C${x1+o} ${y1-70} ${x2+o} ${y2+90} ${x2+o} ${y2}" fill="none" stroke="${col}" stroke-width="2.8" stroke-linecap="round"/>`;
     });
+    const mx=(x1+x2)/2+ (0.375*(x1-x2)/2)*0, my=0.125*y1+0.375*(y1-70)+0.375*(y2+90)+0.125*y2, bx=0.125*x1+0.375*x1+0.375*x2+0.125*x2;
+    s+=`<rect x="${bx-20}" y="${my-8}" width="40" height="15" rx="7.5" fill="var(--ink)"/><text x="${bx}" y="${my+3}" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${d.cal>=63?16:10} mm²</text>`;
   });
   s+=`<rect id="pv" x="0" y="0" width="0" height="0" rx="6" fill="var(--accent)" fill-opacity=".25" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="6 4" visibility="hidden"/>`;
   s+=`<path id="tw" d="" fill="none" stroke="var(--phase)" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round"/>`;
@@ -577,13 +632,15 @@ function renderBoard(){
 const TILES=[
   {sec:'Appareils et circuits',open:true,items:Object.keys(CIRC).filter(k=>k!=='div'&&k!=='autre').map(k=>({key:'c:'+k,k}))},
   {sec:'Interrupteurs différentiels 30 mA',open:true,items:[{key:'id:40:AC',t:'id',cal:40,type:'AC'},{key:'id:40:A',t:'id',cal:40,type:'A'},{key:'id:63:A',t:'id',cal:63,type:'A'},{key:'id:25:AC',t:'id',cal:25,type:'AC'},{key:'id:63:AC',t:'id',cal:63,type:'AC'},{key:'id:40:F',t:'id',cal:40,type:'F'}]},
-  {sec:'Disjoncteurs seuls',open:false,items:[2,10,16,20,25,32,40].map(c=>({key:'d:'+c,cal:c}))},
+  {sec:'Tableau divisionnaire',open:true,items:DIVTABLE.map(r=>({key:'v:'+r[0],dv:r[0]})),note:'Pose le départ dans le tableau principal. Il est branché sur le câble d’arrivée de l’AGCP (10 mm², 16 mm² au-delà de 12 kVA), avant les différentiels. Le tableau divisionnaire est créé tout seul.'},
+  {sec:'Disjoncteurs divisionnaires',open:false,items:[2,10,16,20,25,32,40].map(c=>({key:'d:'+c,cal:c}))},
   {sec:'Autres modules',open:false,items:[{key:'m:para',t:'para'},{key:'m:cont',t:'cont'},{key:'m:tl',t:'tl'},{key:'m:sect',t:'sect'},{key:'m:prise',t:'prise'}]}
 ];
 function tileItem(key){
   const [a,b,c]=key.split(':');
   if(a==='c'){const it=mkCirc(b);it.c.label=CIRC[b].n;if(b==='eclairage')it.c.n=4;if(b==='prises')it.c.n=6;if(b==='cuisine')it.c.n=6;return it}
   if(a==='id')return mkItem('id',{cal:+b,type:c});
+  if(a==='v'){const it=mkCirc('div');const r=DIVTABLE.find(x=>x[0]===+b)||DIVTABLE[1];it.c.cal=r[0];it.c.sec=r[1];it.c.label='Départ divisionnaire';it.feed='head';return it}
   if(a==='d'){const it=mkCirc('autre');it.c.cal=+b;it.c.sec=SECS.find(s=>MAXCAL[s]>=+b);it.c.label='';it.c.p=Math.round(+b*230*.5);return it}
   return mkItem(b);
 }
@@ -592,10 +649,10 @@ function renderPalette(){
   TILES.forEach(g=>{
     h+=`<details ${g.open?'open':''}><summary>${g.sec}</summary><div class="tiles">`;
     g.items.forEach(t=>{
-      if(t.k){const sp=CIRC[t.k];h+=`<div class="tile" data-tile="${t.key}" title="${esc(sp.n)} : ${esc(sp.lim)}"><div class="ic" aria-hidden="true">${sp.ic}</div><b>${esc(sp.n)}</b><span>${sp.cal} A · ${fmt(sp.sec)} mm²</span></div>`}
-      else{const it=tileItem(t.key);h+=`<div class="tile" data-tile="${t.key}">${miniSVG(it,S.brand)}<b>${esc(t.t==='id'?`Diff. ${t.cal} A type ${t.type}`:t.cal?`Disjoncteur ${t.cal} A`:itemName(it))}</b></div>`}
+      if(t.k){const sp=CIRC[t.k];h+=`<div class="tile" data-tile="${t.key}" title="${esc(sp.n)} : ${esc(sp.lim)}. Différentiel ${TY[t.k]==='A!'?'type A obligatoire':TY[t.k]==='A'?'type A conseillé':'type AC'}."><div class="ic" aria-hidden="true">${sp.ic}</div><b>${esc(sp.n)}</b><span>${sp.cal} A · ${fmt(sp.sec)} mm²${TY[t.k][0]==='A'?' · diff. A':''}</span></div>`}
+      else{const it=tileItem(t.key);const nm=t.dv?`Départ divisionnaire ${t.dv} A`:t.t==='id'?`Diff. ${t.cal} A type ${t.type}`:t.cal?`Disjoncteur ${t.cal} A`:itemName(it);const sub=it.t==='disj'?`${fmt(it.c.sec)} mm²`:t.t==='id'?'30 mA':'';h+=`<div class="tile" data-tile="${t.key}" title="${esc(nm)}">${miniSVG(it,S.brand)}<b>${esc(nm)}</b>${sub?`<span>${sub}</span>`:''}</div>`}
     });
-    h+=`</div></details>`;
+    h+=`</div>${g.note?`<p class="hint">${esc(g.note)}</p>`:''}</details>`;
   });
   h+=`<p class="hint">Glisse un élément sur une rangée. Un disjoncteur posé à droite d’un différentiel est alimenté par le peigne.</p>`;
   $('#palette').innerHTML=h;
@@ -653,18 +710,23 @@ function elemHTML(){
       const divs=S.boards.filter(x=>x.kind==='div');
       h+=`<label class="field"><span>Alimente</span><select data-f="c.board"><option value="">—</option>${divs.map(x=>`<option value="${x.id}" ${x.id===c.board?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`;
     }
-    h+=`<label class="field"><span>Disjoncteur</span><select data-f="c.cal" data-num="1">${sel(CALS,c.cal,x=>x+' A courbe C')}</select></label>`;
-    h+=`<label class="field"><span>Câble</span><select data-f="c.sec" data-num="1">${sel(SECS,c.sec,x=>fmt(x)+' mm² (max '+MAXCAL[x]+' A)')}</select></label>`;
-    const ids=sortedIds(b), fd=fm[it.id];
-    h+=`<label class="field"><span>Alimentation</span><select data-f="feed"><option value="">Peigne (auto)${fd.via==='peigne'?' → '+idName(b,ids.find(d=>d.id===fd.by)):''}</option>${ids.map(d=>`<option value="${d.id}" ${it.feed===d.id?'selected':''}>Fil → ${idName(b,d)} ${d.cal} A ${d.type}</option>`).join('')}</select></label>`;
     const r=recommend(c,S);
+    h+=`<div class="field wide"><span>Disjoncteur (courbe C)</span><div class="chips">${CALS.map(x=>`<button type="button" class="chip${x===c.cal?' on':''}${x===r.cal?' rec':''}${x>MAXCAL[c.sec]?' bad':''}" data-chip="c.cal" data-v="${x}">${x} A</button>`).join('')}</div></div>`;
+    h+=`<div class="field wide"><span>Câble (mm²)</span><div class="chips">${SECS.map(x=>`<button type="button" class="chip${x===c.sec?' on':''}${x===r.sec?' rec':''}${MAXCAL[x]<c.cal?' bad':''}" data-chip="c.sec" data-v="${x}">${fmt(x)}</button>`).join('')}</div><span class="note">En vert : conseillé (${r.cal} A, ${fmt(r.sec)} mm²). Barré : pas compatible, je corrige l’autre tout seul si tu le choisis.</span></div>`;
+    const ids=sortedIds(b), fd=fm[it.id];
+    h+=`<label class="field"><span>Alimentation</span><select data-f="feed"><option value="">Peigne (auto)${fd.via==='peigne'?' → '+idName(b,ids.find(d=>d.id===fd.by)):''}</option>${c.k==='div'?`<option value="head" ${it.feed==='head'?'selected':''}>Arrivée AGCP (câble ${S.kva>12?16:10} mm²)</option>`:''}${ids.map(d=>`<option value="${d.id}" ${it.feed===d.id?'selected':''}>Fil → ${idName(b,d)} ${d.cal} A ${d.type}</option>`).join('')}</select></label>`;
+    if(c.k==='div')h+=`<p class="hint">${it.feed==='head'||fd.via==='direct'?'Branché directement sur le câble d’arrivée de l’AGCP, avant les différentiels : le tableau divisionnaire a ses propres différentiels 30 mA.':'Branché derrière un différentiel : les circuits du divisionnaire sont déjà protégés en 30 mA.'}</p>`;
+    if(c.k!=='div'){const ty=TY[c.k]||'AC',idt=fd.by?ids.find(d=>d.id===fd.by):null;const ok=!idt?null:(ty[0]!=='A'||idt.type!=='AC');
+      h+=`<div class="typeline"><b class="t ${ok===null?'bad':ok?'good':ty==='A!'?'bad':'mid'}">${idt?idt.type:'—'}</b><span><b>${ty==='A!'?'Type A obligatoire':ty==='A'?'Type A conseillé':'Type AC suffit'}</b>${idt?` · branché sur ${idName(b,idt)} (type ${idt.type})`:' · aucun différentiel'}. ${esc(TYWHY[c.k]||'Appareil classique : pas de fuite à composante continue.')}</span></div>`}
     h+=`<div class="callout">Conseillé pour ce circuit : <b>${r.cal} A</b> en <b>${fmt(r.sec)} mm²</b>. ${esc(sp.lim)}.</div>`;
     h+=`<div class="row-btns"><button class="btn primary small" type="button" data-act="auto">Régler tout seul</button>${c.k==='div'&&c.board?`<button class="btn small" type="button" data-act="open">Ouvrir le tableau</button>`:''}<button class="btn small" type="button" data-act="dup">Dupliquer</button><button class="btn small danger" type="button" data-act="del">Retirer</button></div>`;
   }else if(it.t==='id'){
     const cs=b.items.filter(i=>fm[i.id].by===it.id);const I=cs.reduce((a,i)=>a+loadOf(S,i),0)/230;
     h+=`<h3>${idName(b,it)} · ${it.cal} A type ${it.type}</h3>`;
-    h+=`<label class="field"><span>Calibre</span><select data-f="cal" data-num="1">${sel([25,40,63],it.cal,x=>x+' A')}</select></label>`;
-    h+=`<label class="field"><span>Type</span><select data-f="type">${sel(['AC','A','F'],it.type,x=>'Type '+x)}</select><span class="note">AC : usage courant · A : plaque, lave-linge, recharge VE, clim · F : variateurs (PAC, lave-linge à moteur inverter)</span></label>`;
+    h+=`<div class="field wide"><span>Calibre</span><div class="chips">${[25,40,63].map(x=>`<button type="button" class="chip${x===it.cal?' on':''}${x<I?' bad':''}" data-chip="cal" data-v="${x}">${x} A</button>`).join('')}</div></div>`;
+    h+=`<div class="field wide"><span>Type</span><div class="chips">${['AC','A','F'].map(x=>`<button type="button" class="chip${x===it.type?' on':''}" data-chip="type" data-v="${x}">Type ${x}</button>`).join('')}</div><span class="note">AC : courant alternatif classique · A : détecte aussi les fuites à composante continue (induction, lave-linge, recharge) · F : comme A, plus résistant aux variateurs (clim, PAC).</span></div>`;
+    const needA=cs.filter(i=>i.t==='disj'&&(TY[i.c.k]||'')[0]==='A');
+    if(needA.length)h+=`<div class="typeline"><b class="t ${it.type==='AC'?(needA.some(i=>TY[i.c.k]==='A!')?'bad':'mid'):'good'}">${it.type}</b><span>Derrière ce différentiel : ${needA.map(i=>esc(i.c.label||CIRC[i.c.k].n)+(TY[i.c.k]==='A!'?' (A obligatoire)':' (A conseillé)')).join(', ')}.</span></div>`;
     h+=`<div class="loadrow"><div class="l"><span>Charge estimée</span><span>${Math.round(I)} / ${it.cal} A</span></div><div class="bar"><i style="width:${Math.min(100,I/it.cal*100)}%;background:${I>it.cal?'var(--err)':I>it.cal*.8?'var(--warn)':'var(--ok)'}"></i></div></div>`;
     h+=`<div class="loadrow"><div class="l"><span>Circuits protégés</span><span>${cs.filter(i=>i.t==='disj'||i.t==='prise').length} / 8</span></div></div>`;
     h+=cs.length?`<ul class="rules">${cs.map(i=>`<li>${esc(itemName(i))}${i.t==='disj'?` · ${i.c.cal} A`:''}${feedMap(b)[i.id].via==='fil'?' (fil)':''}</li>`).join('')}</ul>`:'';
@@ -730,6 +792,8 @@ function memoHTML(){
     h+=`<tr><td>${c.ic} ${esc(c.n)}</td><td class="num">${cab}</td><td class="num">${cal}</td><td>${esc(c.lim)}</td></tr>`});
   h+=`</tbody></table></div>
   <h3>Chauffage, clim, PAC : selon la puissance</h3><div class="tablewrap"><table><thead><tr><th>Jusqu’à</th><th>Câble</th><th>Disj.</th></tr></thead><tbody>${PTABLE.map(r=>`<tr><td class="num">${r[2].toLocaleString('fr-FR')} W</td><td class="num">${fmt(r[1])} mm²</td><td class="num">${r[0]} A</td></tr>`).join('')}</tbody></table></div>
+  <h3>Différentiel : type AC, A ou F ?</h3><div class="tablewrap"><table><thead><tr><th>Appareils</th><th>Type</th><th>Pourquoi</th></tr></thead><tbody>${IDGUIDE.map(g=>`<tr><td>${esc(g[0])}</td><td class="num">${esc(g[1])}</td><td>${esc(g[2])}</td></tr>`).join('')}</tbody></table></div>
+  <div class="callout">La version 2024 de la NF C 15-100 pousse vers le type A, et beaucoup d’installateurs en mettent désormais partout. Vérifie la version qui s’applique à ton chantier et la notice de chaque appareil.</div>
   <h3>Règles générales vérifiées</h3><ul class="rules">
   <li>Tous les circuits sont protégés par un interrupteur différentiel 30 mA.</li>
   <li>Nombre minimum de différentiels : 2 jusqu’à 35 m², 3 de 35 à 100 m², 4 au-delà, dont au moins un type A.</li>
@@ -753,11 +817,30 @@ function memoHTML(){
   return h;
 }
 
+function renderList(){
+  const b=cur(),fm=feedMap(b),ids=sortedIds(b);
+  const st={};ISSUES.forEach(i=>{if(i.item){const r={err:3,warn:2}[i.lvl]||0;st[i.item]=Math.max(st[i.item]||0,r)}});
+  const rows=b.items.filter(i=>i.t==='disj').sort((a,c)=>a.row-c.row||a.col-c.col);
+  let h=`<div class="clhead"><h3>Circuits · ${esc(b.name)}</h3><span class="hint">Tout se règle ici. Choisir un différentiel câble le disjoncteur par un fil ; « Ranger » le rapproche ensuite.</span></div>`;
+  h+=`<div class="tablewrap"><table class="ctab"><thead><tr><th></th><th>Repère</th><th>Circuit</th><th>Disj.</th><th>Câble</th><th>Différentiel</th><th>Puissance W</th></tr></thead><tbody>`;
+  rows.forEach(it=>{const c=it.c,fd=fm[it.id],lv=st[it.id],I=`data-id="${it.id}"`;
+    h+=`<tr class="${SEL===it.id?'sel':''}"><td><button class="dot ${lv===3?'err':lv===2?'warn':'ok'}" type="button" data-pick="${it.id}" aria-label="Voir sur le tableau"></button></td>
+    <td><input type="text" ${I} data-f="c.label" value="${esc(c.label)}" aria-label="Repère"></td>
+    <td><select ${I} data-f="c.k" aria-label="Circuit">${Object.keys(CIRC).filter(k=>k!=='div'||b.kind==='principal').map(k=>`<option value="${k}" ${k===c.k?'selected':''}>${CIRC[k].n}</option>`).join('')}</select></td>
+    <td><select ${I} data-f="c.cal" aria-label="Calibre">${sel(CALS,c.cal,x=>x+' A')}</select></td>
+    <td><select ${I} data-f="c.sec" aria-label="Section">${sel(SECS,c.sec,x=>fmt(x)+' mm²')}</select></td>
+    <td><select ${I} data-f="feed" aria-label="Différentiel"><option value="">${fd.via==='peigne'?'Peigne → '+idName(b,ids.find(d=>d.id===fd.by)):'Peigne (aucun)'}</option>${c.k==='div'?`<option value="head" ${it.feed==='head'?'selected':''}>Arrivée AGCP</option>`:''}${ids.map(d=>`<option value="${d.id}" ${it.feed===d.id?'selected':''}>Fil → ${idName(b,d)} ${d.type}</option>`).join('')}</select></td>
+    <td>${c.k==='div'?'<span class="hint">—</span>':`<input type="number" min="0" step="50" ${I} data-f="c.p" value="${+c.p||0}" aria-label="Puissance">`}</td></tr>`});
+  if(!rows.length)h+=`<tr><td colspan="7" class="empty">Aucun disjoncteur sur ce tableau. Glisse un appareil depuis la palette.</td></tr>`;
+  h+=`</tbody></table></div>`;
+  $('#clist').innerHTML=h;
+}
+
 /* ================= Rendu global ================= */
 function render(){
   ISSUES=analyse(S);
   if(SEL&&!findItem(SEL))SEL=null;
-  renderTabs();renderBoard();renderScore();renderPanel();
+  renderTabs();renderBoard();renderScore();renderPanel();renderList();
   $('#bUndo').disabled=!HIST.length;
 }
 
@@ -811,10 +894,11 @@ function onUp(e){
     else{render();toast('Relâche le fil sur un interrupteur différentiel')}
     return;
   }
+  if(!d.from&&d.it.t==='disj'&&d.it.c.k==='div'&&cur().kind!=='principal'){endDrag();render();toast('Un départ divisionnaire se pose dans le tableau principal');return}
   if(!d.moved){endDrag();if(d.from){SEL=d.it.id;PTAB='elem';render()}else{tapAdd(d)}return}
   const t=d.t;endDrag();
   if(t&&!t.bad){
-    mutate(()=>{const b=cur();let it;if(d.from){it=b.items.find(i=>i.id===d.it.id);it.row=t.row;it.col=t.col;if(it.t!=='id')it.feed=null}else{it=d.it;it.row=t.row;it.col=t.col;b.items.push(it)}SEL=it.id;PTAB='elem'});
+    mutate(()=>{const b=cur();let it;if(d.from){it=b.items.find(i=>i.id===d.it.id);it.row=t.row;it.col=t.col;if(it.t!=='id')it.feed=null}else{it=d.it;it.row=t.row;it.col=t.col;b.items.push(it);attachDiv(it)}SEL=it.id;PTAB='elem'});
     const el=document.querySelector(`[data-item="${SEL}"]`);if(el){el.classList.add('pop');el.style.transformBox='fill-box';el.style.transformOrigin='center'}
     if(!d.from)toast(d.label?`${d.label} ajouté`:'Ajouté');
   }else if(t&&t.bad){render();toast('Plus de place sur cette rangée : ajoute une rangée ou libère des modules')}
@@ -823,7 +907,7 @@ function onUp(e){
 }
 function tapAdd(d){
   const b=cur(),w=W[d.it.t];
-  for(let r=0;r<b.rows;r++)for(let c=0;c+w<=b.mpr;c++)if(free(b,r,c,w)){mutate(()=>{d.it.row=r;d.it.col=c;b.items.push(d.it);SEL=d.it.id;PTAB='elem'});toast(`${d.label||'Module'} ajouté rangée ${r+1}. Déplace-le si besoin.`);return}
+  for(let r=0;r<b.rows;r++)for(let c=0;c+w<=b.mpr;c++)if(free(b,r,c,w)){mutate(()=>{d.it.row=r;d.it.col=c;b.items.push(d.it);attachDiv(d.it);SEL=d.it.id;PTAB='elem'});toast(`${d.label||'Module'} ajouté rangée ${r+1}. Déplace-le si besoin.`);return}
   toast('Tableau plein : ajoute une rangée');
 }
 
@@ -842,7 +926,7 @@ $('#tabs').addEventListener('click',e=>{
   if(e.target.id==='addDiv')mutate(()=>{
     const n=S.boards.filter(b=>b.kind==='div').length+1;const D=newBoard('Divisionnaire '+n,'div');
     D.items.push(Object.assign(mkItem('sect'),{row:0,col:0}),Object.assign(mkItem('id',{cal:40,type:'AC'}),{row:0,col:2}));
-    S.boards.push(D);const P0=principal(S);const f=mkCirc('div',{label:'Départ '+D.name});f.c.board=D.id;
+    S.boards.push(D);const P0=principal(S);const f=mkCirc('div',{label:'Départ '+D.name});f.c.board=D.id;f.feed='head';
     let ok=false;for(let r=0;r<P0.rows&&!ok;r++)for(let c=0;c<P0.mpr&&!ok;c++)if(free(P0,r,c,1)){f.row=r;f.col=c;ok=true}
     if(!ok){P0.rows++;f.row=P0.rows-1;f.col=0}
     P0.items.push(f);S.cur=D.id;SEL=null;toast('Tableau divisionnaire créé, avec son départ dans le tableau principal');
@@ -868,6 +952,7 @@ $('#pbody').addEventListener('click',e=>{
       const el=document.querySelector(`[data-item="${id}"]`);el&&el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'})}}
     else if(bid&&S.cur!==bid&&boardOf(S,bid)){S.cur=bid;save();renderTabs();renderBoard()}
     return}
+  const ch=e.target.closest('[data-chip]');if(ch){setField(ch.dataset.id||SEL,ch.dataset.chip,ch.dataset.v);return}
   const a=e.target.closest('[data-act]');if(!a)return;
   const act=a.dataset.act;
   if(act==='copyList'){const {list}=needs();const txt=list.map(x=>{const m=Math.max(0,x.n-(+(S.stock[x.k]||0)));return m?`${m} × ${x.name}`:null}).filter(Boolean).join('\n')||'Rien à acheter';copy(txt);return}
@@ -879,28 +964,44 @@ $('#pbody').addEventListener('click',e=>{
     if(!spot){toast('Plus de place : ajoute une rangée');return}
     mutate(()=>{const n=clone(it);n.id=uid();n.row=spot.r;n.col=spot.c;n.feed=null;if(n.c&&n.c.label)n.c.label+=' bis';b.items.push(n);SEL=n.id})}
 });
-$('#pbody').addEventListener('change',e=>{
+const NUMF=new Set(['c.cal','c.sec','c.n','c.p','cal']);
+let MSG=null;
+function setField(id,path,v){
+  const f=findItem(id);if(!f)return;const {it}=f;MSG=null;
+  mutate(()=>{
+    if(NUMF.has(path))v=+v;const [a,key]=path.split('.');
+    if(a==='c'){
+      if(key==='k'){const old=CIRC[it.c.k];const wasDefault=!it.c.label||it.c.label===old.n;it.c.k=v;const sp=CIRC[v];if(wasDefault)it.c.label=sp.n;it.c.p=sp.p;if(sp.cnt&&!it.c.n)it.c.n=v==='eclairage'?4:6;Object.assign(it.c,recommend({...it.c,cal:sp.cal,sec:sp.sec},S));if(v==='div'){it.feed='head';attachDiv(it)}}
+      else{it.c[key]=v;if(key==='p'&&CIRC[it.c.k].ptab&&it.c.cal<it.c.p/230)Object.assign(it.c,recommend(it.c,S));
+        if(key==='cal'&&MAXCAL[it.c.sec]<v){it.c.sec=SECS.find(x=>MAXCAL[x]>=v)||16;MSG=`Câble passé en ${fmt(it.c.sec)} mm² pour tenir ${v} A`}
+        if(key==='sec'&&MAXCAL[v]<it.c.cal){it.c.cal=[...CALS].reverse().find(x=>x<=MAXCAL[v]);MSG=`Disjoncteur ramené à ${it.c.cal} A pour protéger ${fmt(v)} mm²`}}
+    }else if(a==='feed')it.feed=v||null;
+    else it[a]=v;
+  });
+  if(MSG)toast(MSG);
+}
+function onFieldChange(e){
   const el=e.target;
   if(el.dataset.stock!==undefined){mutate(()=>{S.stock[el.dataset.stock]=Math.max(0,+el.value||0)});return}
   if(el.dataset.p){mutate(()=>{let v=el.value;if(el.dataset.num)v=+v;if(el.dataset.p==='foudre')v=v==='1';S[el.dataset.p]=v});return}
-  const f=el.dataset.f&&findItem(SEL);if(!f)return;const {it}=f;
-  mutate(()=>{
-    let v=el.value;if(el.dataset.num||el.type==='number')v=+v;
-    const path=el.dataset.f.split('.');
-    if(path[0]==='c'){
-      const key=path[1];
-      if(key==='k'){const old=CIRC[it.c.k];const wasDefault=!it.c.label||it.c.label===old.n;it.c.k=v;const sp=CIRC[v];if(wasDefault)it.c.label=sp.n;it.c.p=sp.p;if(sp.cnt&&!it.c.n)it.c.n=v==='eclairage'?4:6;Object.assign(it.c,recommend({...it.c,cal:sp.cal,sec:sp.sec},S))}
-      else{it.c[key]=v;if(key==='p'&&CIRC[it.c.k].ptab){const r=recommend(it.c,S);if(it.c.cal<it.c.p/230)Object.assign(it.c,r)}}
-    }else if(path[0]==='feed')it.feed=v||null;
-    else it[path[0]]=v;
-  });
-});
-$('#bOpt').addEventListener('click',()=>{mutate(()=>{optimise(S,cur());SEL=null});toast('Rangé : circuits répartis, type A où il faut, 8 max par différentiel, 20 % de réserve')});
+  if(el.dataset.f)setField(el.dataset.id||SEL,el.dataset.f,el.value);
+}
+$('#pbody').addEventListener('change',onFieldChange);
+$('#clist').addEventListener('change',onFieldChange);
+$('#clist').addEventListener('click',e=>{const d=e.target.closest('[data-pick]');if(!d)return;SEL=d.dataset.pick;PTAB='elem';render();const el=document.querySelector(`[data-item="${SEL}"]`);el&&el.scrollIntoView({block:'center',behavior:'smooth'})});
+$('#bTidy').addEventListener('click',()=>{mutate(()=>{tidy(S,cur())});toast('Rangé : chaque différentiel garde ses circuits, plus de fils inutiles')});
+$('#bOpt').addEventListener('click',()=>{mutate(()=>{optimise(S,cur());SEL=null});toast('Optimisé : circuits répartis, type A où il faut, 8 max par différentiel, 20 % de réserve')});
 $('#bUndo').addEventListener('click',undo);
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();undo()}
   if((e.key==='Delete'||e.key==='Backspace')&&SEL&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();const f=findItem(SEL);if(f)mutate(()=>{f.b.items=f.b.items.filter(i=>i.id!==SEL);SEL=null})}
   if(e.key==='Escape'){closeModal()}
+  if(SEL&&/^Arrow/.test(e.key)&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){
+    const b=cur(),it=b.items.find(i=>i.id===SEL);if(!it)return;e.preventDefault();
+    const dc={ArrowLeft:-1,ArrowRight:1}[e.key]||0, dr={ArrowUp:-1,ArrowDown:1}[e.key]||0;
+    let c=it.col+dc,r=it.row+dr;if(dr&&!free(b,r,c,W[it.t],it.id)){for(let k=1;k<b.mpr;k++){if(free(b,r,c-k,W[it.t],it.id)){c-=k;break}if(free(b,r,c+k,W[it.t],it.id)){c+=k;break}}}
+    if(free(b,r,c,W[it.t],it.id))mutate(()=>{it.row=r;it.col=c;if(it.feed!=='head'&&it.t!=='id')it.feed=it.feed&&r===it.row?it.feed:it.feed})
+  }
 });
 
 /* ================= Toast, modales ================= */

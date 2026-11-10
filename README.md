@@ -12,7 +12,11 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
   - nombre minimum de différentiels selon la surface ;
   - 20 % de réserve, repérage des circuits, parafoudre, tableau divisionnaire.
 - **Bilan de puissance** : puissance appelée et abonnement conseillé. La clim et la recharge du véhicule sont comptées.
-- **Tableaux divisionnaires**, chacun avec son départ depuis le tableau principal.
+- **Tableaux divisionnaires** : un départ 32 A / 6 mm², 40 A / 10 mm² ou 63 A / 16 mm² à glisser dans le tableau principal. Il se branche sur le câble d’arrivée de l’AGCP (avant les différentiels) ou derrière un différentiel. Le tableau divisionnaire est créé tout seul.
+- **Section sur chaque fil** : départs, arrivée et liaisons en fil, en mm².
+- **Guide des différentiels AC / A / F / B** selon les appareils (clim, PAC, induction, lave-linge, recharge…).
+- **Réglage rapide** : choisir le calibre adapte la section du câble, et inversement. La liste « Circuits » sous le tableau permet de tout modifier d’un coup.
+- **« Ranger »** compacte le tableau sans changer tes différentiels. **« Optimiser tout »** répartit tous les circuits selon les règles. Les flèches du clavier déplacent le module sélectionné.
 - **Matériel** : gammes Schneider (Resi9) ou Legrand (DX³), liste d’achat selon ton stock.
 - **Assistant « Créer depuis mon logement »** : génère un tableau complet et conforme à partir de quelques questions.
 
