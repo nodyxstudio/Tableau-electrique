@@ -144,8 +144,16 @@ ol.steps li{margin-bottom:4px}
 .issue.err{border-color:var(--err)} .issue.warn{border-color:var(--warn)} .issue.ok{border-color:var(--ok)} .issue.info{border-color:var(--neutre)}
 .issue .lvl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .issue.err .lvl{color:var(--err)} .issue.warn .lvl{color:var(--warn)} .issue.ok .lvl{color:var(--ok)}
-.issue .why{display:none;color:var(--muted);font-size:13px;margin-top:4px}
-.issue.open .why{display:block}
+.issue .why{color:var(--muted);font-size:13px;margin-top:4px}
+.gauge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.gauge .bar{width:90px;margin:0;position:relative}
+.gauge .bar::after{content:'';position:absolute;left:80%;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.5}
+.load{margin:-2px 0 10px}
+.choice{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.choice button{border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:12px;text-align:left;cursor:pointer;display:grid;gap:3px}
+.choice button:hover{border-color:var(--accent);background:var(--accent-soft)}
+.choice b{font-size:15px}.choice span{font-size:12.5px;color:var(--muted)}
+td.pr input{width:64px}
 .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
 .kpi{background:var(--surface-2);border-radius:8px;padding:9px 11px}
 .kpi small{display:block;color:var(--muted);font-size:12px;font-weight:600}
@@ -224,7 +232,8 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
     <button class="btn" id="bTidy" type="button" title="Range les modules sans changer tes différentiels">Ranger</button>
     <button class="btn" id="bOpt" type="button" title="Répartit tous les circuits selon les règles">Optimiser tout</button>
     <button class="btn" id="bUndo" type="button" title="Annuler (Ctrl+Z)">Annuler</button>
-    <button class="btn" id="bIO" type="button">Sauver / charger</button>
+    <button class="btn" id="bIO" type="button">Enregistrer / ouvrir</button>
+    <button class="btn" id="bPDF" type="button">PDF</button>
   </div>
 </header>
 
@@ -252,6 +261,7 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
 <p class="foot">Tableau Malin aide à concevoir un tableau conforme à la NF C 15-100 (logement). Il ne remplace pas l’attestation du Consuel ni la notice des fabricants. Les modules sont des illustrations, pas des photos de produits.</p>
 <div id="layer"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="regles.js"></script>
 <script>
 "use strict";
@@ -443,7 +453,7 @@ const TILES=[
   ...GROUPS.map((g,i)=>({sec:g[0],open:i<2,items:g[1].map(k=>({key:'c:'+k,k}))})),
   {sec:'Interrupteurs différentiels 30 mA',open:false,items:[{key:'id:40:AC',t:'id',cal:40,type:'AC'},{key:'id:40:A',t:'id',cal:40,type:'A'},{key:'id:63:A',t:'id',cal:63,type:'A'},{key:'id:25:AC',t:'id',cal:25,type:'AC'},{key:'id:63:AC',t:'id',cal:63,type:'AC'},{key:'id:40:F',t:'id',cal:40,type:'F'}]},
   {sec:'Tableau divisionnaire',open:false,items:DIVTABLE.map(r=>({key:'v:'+r[0],dv:r[0]})),note:'Pose le départ dans le tableau principal. Il est branché sur le câble d’arrivée de l’AGCP (10 mm², 16 mm² au-delà de 12 kVA), avant les différentiels. Le tableau divisionnaire est créé tout seul.'},
-  {sec:'Disjoncteurs divisionnaires',open:false,items:[2,10,16,20,25,32,40].map(c=>({key:'d:'+c,cal:c}))},
+  {sec:'Disjoncteurs (tous calibres)',open:false,items:[2,6,10,16,20,25,32,40,50,63].map(c=>({key:'d:'+c,cal:c}))},
   {sec:'Autres modules',open:false,items:[{key:'m:para',t:'para'},{key:'m:cont',t:'cont'},{key:'m:tl',t:'tl'},{key:'m:sect',t:'sect'},{key:'m:prise',t:'prise'}]}
 ];
 function tileItem(key){
@@ -481,7 +491,8 @@ function renderTabs(){
   <button class="btn small" type="button" id="bFlow" aria-pressed="${FLOW}">${FLOW?'Courant animé':'Courant fixe'}</button>
   ${TRIP.size?`<button class="btn small" type="button" id="bReset">Tout remettre (${TRIP.size})</button>`:''}
   <label>Marque <select id="bBrand">${Object.entries(BR).map(([k,v])=>`<option value="${k}" ${S.brand===k?'selected':''}>${v.name}</option>`).join('')}</select></label>
-  <span class="hint">${usedMods(b)}/${b.rows*b.mpr} modules · réserve ${Math.round((1-usedMods(b)/(b.rows*b.mpr))*100)} %</span>
+  ${(()=>{const tot=b.rows*b.mpr,fr=tot-usedMods(b),nd=reserveNeed(b),ok=fr>=nd;return `<span class="gauge" title="Réserve obligatoire : 20 % des modules, arrondi au module supérieur">Réserve <span class="bar"><i style="width:${Math.min(100,fr/tot*100/0.25*0.8)}%;background:${ok?'var(--ok)':'var(--err)'}"></i></span><span style="color:${ok?'var(--ok)':'var(--err)'}">${fr} libres / ${nd} min.</span></span>`})()}
+  ${b.kind==='div'?`<button class="btn small" type="button" id="bBack">← ${esc(principal(S).name)}</button>`:''}
   ${b.kind==='div'?`<label>Emplacement <select id="bEt"><option value="">—</option>${ETAGES.map(x=>`<option ${x===b.etage?'selected':''}>${x}</option>`).join('')}</select></label>`:''}
   ${b.kind==='div'?`<button class="btn small danger" type="button" id="delBoard">${DELB===b.id?'Confirmer la suppression':'Supprimer ce tableau'}</button>`:''}`;
 }
@@ -542,10 +553,11 @@ function elemHTML(){
     h+=`<div class="row-btns" style="margin:0 0 10px"><button class="btn small danger" type="button" data-act="del">${TRASH_SVG}Supprimer ce disjoncteur</button></div><h3>${sp.ic} ${esc(c.label||sp.n)}</h3>`;
     if(c.k==='div')h+=divFlowHTML(b,it,fm);
     h+=`<label class="field"><span>Circuit</span><select data-f="c.k">${Object.keys(CIRC).filter(k=>k!=='div'||b.kind==='principal').map(k=>`<option value="${k}" ${k===c.k?'selected':''}>${CIRC[k].n}</option>`).join('')}</select></label>`;
-    h+=`<label class="field"><span>Repère</span><input type="text" data-f="c.label" value="${esc(c.label)}" placeholder="ex. PC chambre 2"></label>`;
+    h+=`<label class="field"><span>Repère</span><input type="text" list="dl-${c.k}" data-f="c.label" value="${esc(c.label)}" placeholder="ex. PC chambre 2"></label>`;
     if(c.k!=='div')h+=`<label class="field"><span>Étage</span><select data-f="c.etage"><option value="">—</option>${ETAGES.map(x=>`<option ${x===c.etage?'selected':''}>${x}</option>`).join('')}</select></label><label class="field"><span>Pièce</span><input type="text" data-f="c.room" value="${esc(c.room||'')}" placeholder="ex. chambre 2"></label>`;
     if(sp.cnt)h+=`<label class="field"><span>Nombre de ${sp.cnt}</span><input type="number" min="0" max="40" data-f="c.n" value="${+c.n||0}"><span class="note">Limite : ${esc(sp.lim)}</span></label>`;
     {const dv=+c.len>0?vdrop(+c.len,circI(S,it),c.sec):0;h+=`<label class="field"><span>Longueur câble (m)</span><input type="number" min="0" step="1" data-f="c.len" value="${+c.len||''}" placeholder="facultatif"><span class="note">${dv?`Chute de tension : <b>${dv.toFixed(1).replace('.',',')} %</b> (max ${c.k==='eclairage'?3:c.k==='div'?2:5} %)`:'Indique la longueur pour vérifier la chute de tension.'}</span></label>`}
+    if(c.k!=='div'){const cook=['plaque','cuisiniere'].includes(c.k),I=(+c.p||0)*(cook?.8:1)/230,pc=I/c.cal;h+=`<div class="loadrow load"><div class="l"><span>Charge du disjoncteur</span><span>${I.toFixed(1).replace('.',',')} A / ${c.cal} A</span></div><div class="bar"><i style="width:${Math.min(100,pc*100)}%;background:${pc>1?'var(--err)':pc>.85?'var(--warn)':'var(--ok)'}"></i></div><span class="hint">${pc>1?'Trop chargé : il va sauter.':pc>.85?'Peu de marge.':'Bonne marge.'} Courant = puissance ÷ 230 V${cook?' (plaque : 80 % de la puissance, elle gère ses foyers)':''}.</span></div>`}
     if(c.k!=='div')h+=`<label class="field"><span>Puissance (W)</span><input type="number" min="0" step="50" data-f="c.p" value="${+c.p||0}">${(c.k==='clim'||c.k==='pac')?`<span class="note">Mets la puissance électrique absorbée (étiquette « P absorbée » ou « input »), pas la puissance froid. Une clim de 2,5 kW froid absorbe souvent 700 à 900 W.</span>`:''}</label>`;
     if(c.k==='div'){
       const divs=S.boards.filter(x=>x.kind==='div');
@@ -601,27 +613,33 @@ function needs(){
   const B=BR[S.brand]||BR.generic, pre='';
   const m=new Map();const add=(k,name,n=1)=>{const e=m.get(k)||{k,name,n:0};e.n+=n;m.set(k,e)};
   S.boards.forEach(b=>{
-    add(`coffret-${b.rows}x${b.mpr}`,`${pre}${B.gC} Coffret ${b.rows} rangée${b.rows>1?'s':''} × ${b.mpr} modules`.replace(/\s+/g,' ').trim());
+    add(`coffret-${b.rows}x${b.mpr}`,`${B.gC} Coffret nu ${b.rows} rangée${b.rows>1?'s':''} × ${b.mpr} modules`.replace(/\s+/g,' ').trim());
     const fm=feedMap(b);
     b.items.forEach(i=>{
-      if(i.t==='disj')add('disj-'+i.c.cal,`${pre}${B.gD} Disjoncteur 1P+N ${i.c.cal} A courbe C`.replace(/\s+/g,' ').trim());
-      else if(i.t==='id')add(`id-${i.cal}-${i.type}`,`${pre}${B.gI} Interrupteur différentiel ${i.cal} A 30 mA type ${i.type}`.replace(/\s+/g,' ').trim());
-      else add('m-'+i.t,pre+{para:'Parafoudre 1P+N',cont:'Contacteur heures creuses 20 A',tl:'Télérupteur 16 A',sect:'Interrupteur-sectionneur 63 A',prise:'Prise de courant modulaire 16 A'}[i.t]);
+      if(i.t==='disj')add('disj-'+i.c.cal,`${B.gD} Disjoncteur 1P+N ${i.c.cal} A courbe C`.replace(/\s+/g,' ').trim());
+      else if(i.t==='id')add(`id-${i.cal}-${i.type}`,`${B.gI} Interrupteur différentiel ${i.cal} A 30 mA type ${i.type}`.replace(/\s+/g,' ').trim());
+      else add('m-'+i.t,{para:'Parafoudre 1P+N',cont:'Contacteur heures creuses 20 A',tl:'Télérupteur 16 A',sect:'Interrupteur-sectionneur 63 A',prise:'Prise de courant modulaire 16 A'}[i.t]);
     });
-    for(let r=0;r<b.rows;r++)if(b.items.some(i=>i.row===r&&fm[i.id].via==='peigne'))add('peigne-'+b.mpr,`${pre}Peigne 1P+N ${b.mpr} modules`);
+    for(let r=0;r<b.rows;r++)if(b.items.some(i=>i.row===r&&fm[i.id].via==='peigne'))add('peigne-'+b.mpr,`Peigne 1P+N ${b.mpr} modules`);
     const fils=b.items.filter(i=>fm[i.id].via==='fil').length;if(fils)add('fil-10',`Fils de liaison 10 mm² (paires phase/neutre)`,fils);
   });
-  const cables={};S.boards.forEach(b=>b.items.forEach(i=>{if(i.t==='disj'){cables[i.c.sec]=(cables[i.c.sec]||0)+1}}));
+  const cables={};S.boards.forEach(b=>b.items.forEach(i=>{if(i.t==='disj'){const e=cables[i.c.sec]||(cables[i.c.sec]={n:0,m:0});e.n++;e.m+=+i.c.len||0}}));
   return{list:[...m.values()].sort((a,b)=>a.k.localeCompare(b.k,'fr',{numeric:true})),cables};
 }
+const eur=v=>v.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:v<20?2:0});
+function budget(){const {list,cables}=needs();let tot=0,buy=0;list.forEach(e=>{const p=priceOf(S,e.k);tot+=p*e.n;buy+=p*Math.max(0,e.n-(+(S.stock[e.k]||0)))});
+  let cab=0;Object.entries(cables).forEach(([s,e])=>cab+=e.m*priceOf(S,'cable-'+s));return{tot,buy,cab}}
 function matHTML(){
-  const {list,cables}=needs();let buy=0;
-  let h=`<h3>Liste de matériel · ${esc((BR[S.brand]||BR.generic).name)}</h3><p class="hint">Indique ce que tu as déjà : la colonne « À acheter » se met à jour.</p><div class="tablewrap"><table><thead><tr><th>Produit</th><th>Besoin</th><th>J’ai</th><th>À acheter</th></tr></thead><tbody>`;
+  const {list,cables}=needs(),bg=budget();let buy=0;
+  let h=`<h3>Matériel · ${esc((BR[S.brand]||BR.generic).name)}</h3><p class="hint">Indique ce que tu as déjà : « À acheter » et le budget se mettent à jour. Les prix sont des prix publics indicatifs TTC ; tu peux mettre les tiens.</p>
+  <div class="kpis"><div class="kpi"><small>Budget tableau${S.boards.length>1?'x':''}</small><b>${eur(bg.tot)}</b></div><div class="kpi"><small>Reste à acheter</small><b>${eur(bg.buy)}</b></div></div>
+  <div class="tablewrap"><table><thead><tr><th>Produit</th><th>Besoin</th><th>J’ai</th><th>Achat</th><th>Prix unit.</th></tr></thead><tbody>`;
   list.forEach(e=>{const have=+(S.stock[e.k]||0), miss=Math.max(0,e.n-have);if(miss)buy+=miss;
-    h+=`<tr><td>${esc(e.name)}</td><td class="num">${e.n}</td><td><input type="number" min="0" data-stock="${e.k}" value="${have}" aria-label="En stock : ${esc(e.name)}"></td><td class="num ${miss?'buy':'got'}">${miss||'✓'}</td></tr>`});
+    h+=`<tr><td>${esc(e.name)}</td><td class="num">${e.n}</td><td><input type="number" min="0" data-stock="${e.k}" value="${have}" aria-label="En stock : ${esc(e.name)}"></td><td class="num ${miss?'buy':'got'}">${miss||'✓'}</td><td class="pr"><input type="number" min="0" step="0.5" data-price="${e.k}" value="${priceOf(S,e.k)}" aria-label="Prix unitaire : ${esc(e.name)}"></td></tr>`});
   h+=`</tbody></table></div>`;
-  h+=`<div class="callout">${buy?`Il te manque <b>${buy}</b> article${buy>1?'s':''}.`:'Tu as tout le matériel pour ce tableau.'}</div>`;
-  h+=`<h3>Câbles de départ</h3><ul class="rules">${Object.keys(cables).sort((a,b)=>a-b).map(s=>`<li>${fmt(s)} mm² : ${cables[s]} circuit${cables[s]>1?'s':''} (3G${fmt(s)} ou fils H07V-U ${fmt(s)} mm²)</li>`).join('')}</ul>`;
+  h+=`<div class="callout">${buy?`Il te manque <b>${buy}</b> article${buy>1?'s':''}, environ <b>${eur(bg.buy)}</b>.`:'Tu as tout le matériel pour ce tableau.'}</div>`;
+  h+=`<h3>Câbles de départ</h3><ul class="rules">${Object.keys(cables).sort((a,b)=>a-b).map(s=>{const e=cables[s];return `<li>${fmt(s)} mm² : ${e.n} circuit${e.n>1?'s':''}${e.m?` · ${e.m} m ≈ ${eur(e.m*priceOf(S,'cable-'+s))}`:''} (câble 3G${fmt(s)} R2V ou fils H07V-U)</li>`}).join('')}</ul>
+  <p class="hint">Indique la longueur de chaque circuit (réglages du disjoncteur) pour chiffrer le câble${bg.cab?` : ${eur(bg.cab)} pour l’instant`:''}.</p>`;
   h+=`<div class="row-btns"><button class="btn small" type="button" data-act="copyList">Copier la liste d’achat</button></div>`;
   return h;
 }
@@ -663,17 +681,17 @@ function renderList(){
   const st={};ISSUES.forEach(i=>{if(i.item){const r={err:3,warn:2}[i.lvl]||0;st[i.item]=Math.max(st[i.item]||0,r)}});
   const rows=b.items.filter(i=>i.t==='disj').sort((a,c)=>a.row-c.row||a.col-c.col);
   let h=`<div class="clhead"><h3>Circuits · ${esc(b.name)}</h3><span class="hint">Tout se règle ici. Choisir un différentiel câble le disjoncteur par un fil ; « Ranger » le rapproche ensuite.</span></div>`;
-  h+=`<div class="tablewrap"><table class="ctab"><thead><tr><th></th><th>Repère</th><th>Circuit</th><th>Étage</th><th>Disj.</th><th>Câble</th><th>Différentiel</th><th>Puissance W</th></tr></thead><tbody>`;
+  h+=`<div class="tablewrap"><table class="ctab"><thead><tr><th></th><th>Repère</th><th>Circuit</th><th>Étage</th><th>Disj.</th><th>Câble</th><th>Différentiel</th><th>Puissance W</th><th>Charge</th></tr></thead><tbody>`;
   rows.forEach(it=>{const c=it.c,fd=fm[it.id],lv=st[it.id],I=`data-id="${it.id}"`;
     h+=`<tr class="${SEL===it.id?'sel':''}"><td><button class="dot ${lv===3?'err':lv===2?'warn':'ok'}" type="button" data-pick="${it.id}" aria-label="Voir sur le tableau"></button></td>
-    <td><input type="text" ${I} data-f="c.label" value="${esc(c.label)}" aria-label="Repère"></td>
+    <td><input type="text" list="dl-${c.k}" ${I} data-f="c.label" value="${esc(c.label)}" aria-label="Repère"></td>
     <td><select ${I} data-f="c.k" aria-label="Circuit">${Object.keys(CIRC).filter(k=>k!=='div'||b.kind==='principal').map(k=>`<option value="${k}" ${k===c.k?'selected':''}>${CIRC[k].n}</option>`).join('')}</select></td>
     <td>${c.k==='div'?'<span class="hint">—</span>':`<select ${I} data-f="c.etage" aria-label="Étage"><option value="">—</option>${ETAGES.map(x=>`<option ${x===c.etage?'selected':''}>${x}</option>`).join('')}</select>`}</td>
     <td><select ${I} data-f="c.cal" aria-label="Calibre">${sel(CALS,c.cal,x=>x+' A')}</select></td>
     <td><select ${I} data-f="c.sec" aria-label="Section">${sel(SECS,c.sec,x=>fmt(x)+' mm²')}</select></td>
     <td><select ${I} data-f="feed" aria-label="Différentiel"><option value="">${fd.via==='peigne'?'Peigne → '+idName(b,ids.find(d=>d.id===fd.by)):'Peigne (aucun)'}</option>${c.k==='div'?`<option value="head" ${it.feed==='head'?'selected':''}>Arrivée AGCP</option>`:''}${ids.map(d=>`<option value="${d.id}" ${it.feed===d.id?'selected':''}>Fil → ${idName(b,d)} ${d.type}</option>`).join('')}</select></td>
-    <td>${c.k==='div'?'<span class="hint">—</span>':`<input type="number" min="0" step="50" ${I} data-f="c.p" value="${+c.p||0}" aria-label="Puissance">`}</td></tr>`});
-  if(!rows.length)h+=`<tr><td colspan="8" class="empty">Aucun disjoncteur sur ce tableau. Glisse un appareil depuis la palette.</td></tr>`;
+    <td>${c.k==='div'?'<span class="hint">—</span>':`<input type="number" min="0" step="50" ${I} data-f="c.p" value="${+c.p||0}" aria-label="Puissance">`}</td><td class="num">${c.k==='div'?'—':(()=>{const pc=(+c.p||0)*(['plaque','cuisiniere'].includes(c.k)?.8:1)/230/c.cal;return `<span style="color:${pc>1?'var(--err)':pc>.85?'var(--warn)':'var(--ok)'}">${Math.round(pc*100)} %</span>`})()}</td></tr>`});
+  if(!rows.length)h+=`<tr><td colspan="9" class="empty">Aucun disjoncteur sur ce tableau. Glisse un appareil depuis la palette.</td></tr>`;
   h+=`</tbody></table></div>`;
   $('#clist').innerHTML=h;
 }
@@ -750,20 +768,20 @@ function onUp(e){
     return;
   }
   if(!d.from&&d.it.t==='disj'&&d.it.c.k==='div'&&cur().kind!=='principal'){endDrag();render();toast('Un départ divisionnaire se pose dans le tableau principal');return}
-  if(!d.moved){endDrag();if(d.from){SEL=d.it.id;PTAB='elem';render()}else{tapAdd(d)}return}
+  if(!d.moved){endDrag();if(d.from){const it=d.it;if(it.t==='disj'&&it.c.k==='div'&&boardOf(S,it.c.board)){S.cur=it.c.board;SEL=null;TRIP.clear();commit();toast(`Tu es dans « ${cur().name} ». Clique sur « Arrivée » pour régler son départ, ou sur « ← » pour revenir.`);return}SEL=d.it.id;PTAB='elem';render()}else{tapAdd(d)}return}
   const t=d.t;endDrag();
   if(d.from&&d.trash){delItem(d.it.id);return}
   if(t&&!t.bad){
     mutate(()=>{const b=cur();let it;Object.entries(t.moves||{}).forEach(([k,c])=>{const m=b.items.find(i=>i.id===k);if(m)m.col=c});if(d.from){it=b.items.find(i=>i.id===d.it.id);it.row=t.row;it.col=t.col;if(it.t!=='id'&&it.feed!=='head')it.feed=null}else{it=d.it;it.row=t.row;it.col=t.col;b.items.push(it);attachDiv(S,it)}SEL=it.id;PTAB='elem'});
     const el=document.querySelector(`[data-item="${SEL}"]`);if(el){el.classList.add('pop');el.style.transformBox='fill-box';el.style.transformOrigin='center'}
-    if(!d.from)toast(d.label?`${d.label} ajouté`:'Ajouté');
+    if(!d.from){if(d.it.t==='disj'&&d.it.c.k!=='div')checkToast(SEL);else toast(d.label?`${d.label} ajouté`:'Ajouté')}
   }else if(t&&t.bad){render();toast('Plus de place sur cette rangée : ajoute une rangée ou libère des modules')}
   else if(d.from){const keep=JSON.stringify(S);mutate(()=>{const b=cur();b.items=b.items.filter(i=>i.id!==d.it.id);SEL=null});toast('Retiré du tableau',()=>{S=JSON.parse(keep);commit()})}
   else render();
 }
 function tapAdd(d){
   const b=cur(),w=W[d.it.t];
-  for(let r=0;r<b.rows;r++)for(let c=0;c+w<=b.mpr;c++)if(free(b,r,c,w)){mutate(()=>{d.it.row=r;d.it.col=c;b.items.push(d.it);attachDiv(S,d.it);SEL=d.it.id;PTAB='elem'});toast(`${d.label||'Module'} ajouté rangée ${r+1}. Déplace-le si besoin.`);return}
+  for(let r=0;r<b.rows;r++)for(let c=0;c+w<=b.mpr;c++)if(free(b,r,c,w)){mutate(()=>{d.it.row=r;d.it.col=c;b.items.push(d.it);attachDiv(S,d.it);SEL=d.it.id;PTAB='elem'});if(d.it.t==='disj'&&d.it.c.k!=='div')checkToast(d.it.id);else toast(`${d.label||'Module'} ajouté rangée ${r+1}. Déplace-le si besoin.`);return}
   toast('Tableau plein : ajoute une rangée');
 }
 
@@ -780,6 +798,7 @@ $('#boardwrap').addEventListener('pointerdown',e=>{
   const wh=e.target.closest('[data-wire]');
   if(wh){const b=cur(),it=b.items.find(i=>i.id===wh.dataset.wire),p=pos(it);startDrag(e,{kind:'wire',id:it.id,x:p.x+MOD/2,y:p.y-38});return}
   if(e.target.closest('[data-rowlabel]')){openRows(+e.target.closest('[data-rowlabel]').dataset.rowlabel);return}
+  if(e.target.closest('[data-head]')&&cur().kind==='div'){const b=cur(),P0=principal(S),f=P0.items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);S.cur=P0.id;SEL=f?f.id:null;PTAB='elem';commit();toast(f?'Départ de ce tableau sélectionné':'Ce tableau n’a pas de départ');return}
   if(e.target.closest('[data-head]')){PTAB='bilan';renderPanel();toast('Réglages de l’arrivée dans l’onglet Logement');return}
   const g=e.target.closest('[data-item]');
   if(g){const it=cur().items.find(i=>i.id===g.dataset.item);startDrag(e,{it,from:true,label:itemName(it)});return}
@@ -791,6 +810,7 @@ $('#tabs').addEventListener('click',e=>{
 });
 $('#boardbar').addEventListener('click',e=>{
   if(e.target.id==='bRows'){openRows();return}
+  if(e.target.id==='bBack'){S.cur=principal(S).id;SEL=null;commit();return}
   if(e.target.id==='bFlow'){FLOW=!FLOW;try{localStorage.setItem('tm-flow',FLOW?'1':'0')}catch(x){}render();return}
   if(e.target.id==='bReset'){TRIP.clear();render();toast('Tout est remis sous tension');return}
   const r=e.target.closest('[data-rows]');
@@ -839,8 +859,12 @@ function setField(id,path,v){
     }else if(a==='feed')it.feed=v||null;
     else it[a]=v;
   });
-  if(MSG)toast(MSG);
+  if(MSG)toast(MSG);else if(/^c\.(cal|sec|p|k|n)$/.test(path))checkToast(id);
 }
+function checkToast(id){const f=findItem(id);if(!f||f.it.t!=='disj')return;const c=f.it.c;const my=ISSUES.filter(i=>i.item===id&&i.lvl!=='info').sort((a,b)=>(a.lvl==='err'?0:1)-(b.lvl==='err'?0:1));
+  if(my.length){toast((my[0].lvl==='err'?'À corriger : ':'Conseil : ')+my[0].msg);return}
+  if(c.k==='div'){toast(`${c.label} : ${c.cal} A · ${fmt(c.sec)} mm², conforme`);return}
+  const I=(+c.p||0)*(['plaque','cuisiniere'].includes(c.k)?.8:1)/230;toast(`${c.label||CIRC[c.k].n} : ${c.cal} A · ${fmt(c.sec)} mm² · ${I.toFixed(1).replace('.',',')} A sur ${c.cal} A (${Math.round(I/c.cal*100)} %) · conforme`)}
 let TYPING=false,TTI=null;
 function onFieldInput(e){
   const el=e.target;if(el.type!=='text')return;
@@ -854,6 +878,7 @@ function onFieldChange(e){
   const el=e.target;
   if(el.type==='text'&&TYPING){TYPING=false;clearTimeout(TTI);render();return}
   if(el.dataset.stock!==undefined){mutate(()=>{S.stock[el.dataset.stock]=Math.max(0,+el.value||0)});return}
+  if(el.dataset.price!==undefined){mutate(()=>{S.prices=S.prices||{};S.prices[el.dataset.price]=el.value===''?'':Math.max(0,+el.value)});return}
   if(el.dataset.p){mutate(()=>{let v=el.value;if(el.dataset.num)v=+v;if(el.dataset.p==='foudre')v=v==='1';S[el.dataset.p]=v});return}
   if(el.dataset.f)setField(el.dataset.id||SEL,el.dataset.f,el.value);
 }
@@ -951,12 +976,87 @@ $('#bGen').addEventListener('click',()=>{
     mutate(()=>{S=generate(H);SEL=null});closeModal();renderPalette();toast('Tableau créé et vérifié')});
   $('#hEmpty',m).addEventListener('click',()=>{mutate(()=>{const P=generate({...h,name:'Nouveau projet'});const B=principal(P);B.items=[];B.rows=2;P.boards=[B];P.cur=B.id;S=P;SEL=null});closeModal();toast('Tableau vide : glisse un différentiel puis des disjoncteurs')});
 });
-$('#bIO').addEventListener('click',()=>{
-  const m=openModal(`<h2>Sauver / charger</h2><p class="hint">Ton projet est enregistré automatiquement dans ce navigateur. Pour le garder ailleurs ou l’envoyer à quelqu’un, copie ce texte. Pour charger un projet, colle son texte ici.</p>
-  <textarea id="io">${esc(JSON.stringify(S))}</textarea><div class="row-btns"><button class="btn primary" type="button" id="ioCopy">Copier</button><button class="btn" type="button" id="ioLoad">Charger ce texte</button><button class="btn" type="button" data-close>Fermer</button></div>`);
+/* ================= Fichiers : enregistrer, ouvrir, PDF ================= */
+let DL=null;try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(x=>{DL=x}).catch(()=>{})}catch(e){}
+const slug=t=>String(t||'tableau').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'tableau';
+async function saveBlob(data,filename){
+  if(DL){try{await DL.save({filename,data});toast('Fichier enregistré : '+filename);return true}catch(e){if(e&&e.code==='declined'){toast('Enregistrement annulé');return false}}}
+  try{const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);toast('Fichier téléchargé : '+filename);return true}catch(e){toast('Ton navigateur bloque le téléchargement ici');return false}
+}
+function projectFile(){return JSON.stringify({app:'Tableau Malin',format:2,enregistre:new Date().toISOString(),projet:S},null,1)}
+function saveProject(){return saveBlob(new Blob([projectFile()],{type:'application/json'}),slug(S.name)+'.tableau.json')}
+function readProject(txt){const o=JSON.parse(txt);const P=o&&o.projet?o.projet:o;if(!P||!Array.isArray(P.boards)||!P.boards.length)throw new Error('format');P.stock=P.stock||{};P.prices=P.prices||{};if(!boardOf(P,P.cur))P.cur=P.boards[0].id;return P}
+function pickFile(){const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;try{const P=readProject(await f.text());mutate(()=>{S=P;SEL=null;TRIP.clear()});closeModal();hideWelcome();renderPalette();toast(`Projet « ${S.name} » ouvert`)}catch(e){toast('Ce fichier n’est pas un projet Tableau Malin')}};inp.click()}
+function openFileModal(){
+  const m=openModal(`<h2>Enregistrer / ouvrir</h2>
+  <p class="hint">Ton tableau est gardé dans ce navigateur pendant que tu travailles. Pour le garder pour de bon, l’envoyer ou le reprendre sur un autre ordinateur, enregistre-le en fichier : tu pourras l’ouvrir ici plus tard.</p>
+  <div class="choice">
+   <button type="button" data-io="save"><b>Enregistrer sur mon ordinateur</b><span>Fichier ${esc(slug(S.name))}.tableau.json</span></button>
+   <button type="button" data-io="open"><b>Ouvrir un fichier</b><span>Reprendre un tableau enregistré</span></button>
+   <button type="button" data-io="pdf"><b>Exporter en PDF</b><span>Schéma, circuits, contrôle, matériel</span></button>
+   <button type="button" data-io="new"><b>Nouveau tableau</b><span>Depuis ton logement ou vide</span></button>
+  </div>
+  <details class="explain"><summary>Pas de téléchargement possible ? Copier le projet en texte</summary><p class="hint">Copie ce texte et garde-le. Pour le reprendre, colle-le ici puis « Charger ce texte ».</p><textarea id="io">${esc(projectFile())}</textarea><div class="row-btns"><button class="btn small" type="button" id="ioCopy">Copier</button><button class="btn small" type="button" id="ioLoad">Charger ce texte</button></div></details>
+  <div class="row-btns"><button class="btn" type="button" data-close>Fermer</button></div>`);
+  m.addEventListener('click',e=>{const b=e.target.closest('[data-io]');if(!b)return;const a=b.dataset.io;
+    if(a==='save')saveProject();if(a==='open')pickFile();if(a==='pdf'){closeModal();makePDF()}if(a==='new'){closeModal();$('#bGen').click()}});
   $('#ioCopy',m).onclick=()=>copy($('#io',m).value);
-  $('#ioLoad',m).onclick=()=>{try{const P=JSON.parse($('#io',m).value);if(!P.boards||!P.boards.length)throw 0;mutate(()=>{S=P;S.stock=S.stock||{};SEL=null});closeModal();renderPalette();toast('Projet chargé')}catch(e){toast('Ce texte n’est pas un projet Tableau Malin valide')}};
-});
+  $('#ioLoad',m).onclick=()=>{try{const P=readProject($('#io',m).value);mutate(()=>{S=P;SEL=null});closeModal();renderPalette();toast('Projet chargé')}catch(e){toast('Ce texte n’est pas un projet Tableau Malin valide')}};
+}
+$('#bIO').addEventListener('click',openFileModal);
+$('#bPDF').addEventListener('click',()=>makePDF());
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});
+
+/* PDF : dessin de chaque tableau + circuits + contrôle + matériel */
+function boardSVGFor(b){
+  const keep=[S.cur,SEL,FLOW,TRIP];S.cur=b.id;SEL=null;FLOW=false;TRIP=new Set();renderBoard();
+  let svg=$('#bsvg').outerHTML;[S.cur,SEL,FLOW,TRIP]=keep;renderBoard();
+  const root=document.documentElement,prev=root.getAttribute('data-theme');root.setAttribute('data-theme','light');
+  const cs=getComputedStyle(root);svg=svg.replace(/var\(--([\w-]+)\)/g,(m,n)=>(cs.getPropertyValue('--'+n).trim()||'#000').replace(/"/g,"'"));
+  if(prev===null)root.removeAttribute('data-theme');else root.setAttribute('data-theme',prev);
+  const {Wd,Hd}=boardDims(b);
+  return {svg:svg.replace('<svg ',`<svg xmlns="http://www.w3.org/2000/svg" width="${Wd}" height="${Hd}" `).replace(/style="max-width:[^"]*"/,''),w:Wd,h:Hd};
+}
+function svgToPNG(o){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const k=1.6,c=document.createElement('canvas');c.width=o.w*k;c.height=o.h*k;const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.82))};img.onerror=rej;img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(o.svg)})}
+async function makePDF(){
+  if(!window.jspdf){toast('Le module PDF n’a pas pu se charger. Vérifie ta connexion puis réessaie.');return}
+  toast('Préparation du PDF…');
+  const T=t=>String(t??'').replace(/[  ]/g,' ').replace(/→/g,'->').replace(/←/g,'<-').replace(/≤/g,'<=').replace(/≈/g,'~').replace(/×/g,'x').replace(/[^\x00-\xFF€…’‘“”«»·–—]/g,'').trim();
+  const {jsPDF}=window.jspdf, doc=new jsPDF({unit:'mm',format:'a4'}), PW=210, M=15, CW=PW-2*M;let y=M;
+  const need=h=>{if(y+h>282){doc.addPage();y=M}};
+  const txt=(t,{size=10,bold=false,color=[30,32,36],gap=1.5,indent=0}={})=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(T(t),CW-indent);const lh=size*0.42;need(lines.length*lh);doc.text(lines,M+indent,y+lh*0.8);y+=lines.length*lh+gap};
+  const rule=()=>{need(4);doc.setDrawColor(210);doc.line(M,y,PW-M,y);y+=4};
+  const e=ISSUES.filter(i=>i.lvl==='err'),w=ISSUES.filter(i=>i.lvl==='warn');
+  txt('Tableau Malin',{size:9,color:[120,120,120],gap:0});
+  txt(S.name||'Mon tableau',{size:20,bold:true,gap:1});
+  txt(`${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})} · ${S.surf} m² · abonnement ${S.kva} kVA (AGCP ${S.kva*5} A) · câble d’arrivée ${arrSec(S)} mm² · ${S.tarif==='hc'?'heures creuses':'base'} · ${(BR[S.brand]||BR.generic).name}`,{size:9.5,color:[90,90,90],gap:3});
+  txt(e.length?`${e.length} point(s) à corriger avant le Consuel`:w.length?`Aucun point bloquant · ${w.length} conseil(s)`:'Aucun point bloquant : prêt pour le Consuel',{size:12,bold:true,color:e.length?[196,50,28]:[29,138,75],gap:3});
+  const bg=budget();txt(`Puissance appelée estimée : ${kw(demand(S))} · Budget matériel indicatif : ${eur(bg.tot)}${bg.cab?` + câbles ${eur(bg.cab)}`:''}`,{size:9.5,gap:4});
+  for(const b of S.boards){
+    need(90);rule();txt(b.name+(b.etage?' · '+b.etage:''),{size:14,bold:true,gap:2});
+    try{const o=boardSVGFor(b),png=await svgToPNG(o);let iw=CW,ih=CW*o.h/o.w;if(ih>200){ih=200;iw=ih*o.w/o.h}need(ih+2);doc.addImage(png,'JPEG',M+(CW-iw)/2,y,iw,ih);y+=ih+4}catch(err){txt('(dessin indisponible)',{size:9,color:[150,150,150]})}
+    const fm=feedMap(b),ids=sortedIds(b);
+    const cols=[['Repère',52],['Circuit',38],['Lieu',28],['Protection',24],['Différentiel',22],['Charge',16]];
+    need(22);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(90);let x=M;cols.forEach(([h,cw])=>{doc.text(h,x,y+4);x+=cw});y+=6;doc.setDrawColor(220);doc.line(M,y,PW-M,y);y+=1;
+    b.items.filter(i=>i.t==='disj').sort((a,c)=>a.row-c.row||a.col-c.col).forEach(it=>{
+      const c=it.c,d=fm[it.id].by?ids.find(z=>z.id===fm[it.id].by):null,db=c.k==='div'&&boardOf(S,c.board);
+      const pc=c.k==='div'?'':Math.round((+c.p||0)*(['plaque','cuisiniere'].includes(c.k)?.8:1)/230/c.cal*100)+' %';
+      const cells=[c.label||CIRC[c.k].n,CIRC[c.k].n,db?'-> '+db.name:[c.room,c.etage].filter(Boolean).join(', '),`${c.cal} A · ${fmt(c.sec)} mm²`,d?`${idName(b,d)} ${d.type}`:(c.k==='div'?'arrivée':'aucun'),pc];
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(30);
+      const wrapped=cells.map((t,k)=>doc.splitTextToSize(T(t),cols[k][1]-2));const hh=Math.max(...wrapped.map(l=>l.length))*3.6+1.5;need(hh);
+      x=M;wrapped.forEach((l,k)=>{doc.text(l,x,y+3.4);x+=cols[k][1]});y+=hh;doc.setDrawColor(235);doc.line(M,y,PW-M,y);y+=0.5;
+    });
+    y+=3;
+  }
+  rule();txt('Contrôle NF C 15-100',{size:14,bold:true,gap:2});
+  if(!ISSUES.length)txt('Aucun problème détecté.',{size:10});
+  const rk={err:0,warn:1,info:2};[...ISSUES].sort((a,b)=>rk[a.lvl]-rk[b.lvl]).forEach(i=>{txt(`${{err:'À CORRIGER',warn:'CONSEIL',info:'INFO'}[i.lvl]} · ${i.msg}`,{size:9.5,bold:true,color:i.lvl==='err'?[196,50,28]:i.lvl==='warn'?[176,106,0]:[36,99,196],gap:0.5});if(i.why)txt(i.why,{size:8.5,color:[100,100,100],gap:2.5,indent:3})});
+  rule();txt('Matériel (prix indicatifs TTC)',{size:14,bold:true,gap:2});
+  const {list}=needs();list.forEach(e=>{const p=priceOf(S,e.k);txt(`${e.n} × ${e.name} — ${eur(p)} → ${eur(p*e.n)}`,{size:9.5,gap:0.8})});
+  txt(`Total indicatif : ${eur(bg.tot)}`,{size:11,bold:true,gap:4});
+  const n=doc.getNumberOfPages();for(let k=1;k<=n;k++){doc.setPage(k);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(140);doc.text(T(`Tableau Malin · aide à la conception NF C 15-100 (logement). Ne remplace ni le Consuel ni les notices des fabricants. Page ${k}/${n}`),M,292)}
+  await saveBlob(doc.output('blob'),slug(S.name)+'.pdf');
+}
 
 function openRows(focus){
   const b=cur();b.rowNames=b.rowNames||[];
@@ -972,19 +1072,42 @@ function openDivTemplates(){
   <div class="row-btns"><button class="btn" type="button" data-close>Annuler</button></div>`);
   m.addEventListener('click',e=>{const t=e.target.closest('[data-tpl]');if(!t)return;let D;mutate(()=>{D=addDivBoard(S,t.dataset.tpl);S.cur=D.id;SEL=null});closeModal();toast(`Tableau « ${D.name} » créé, avec son départ dans le tableau principal`)});
 }
+let HAD_SAVED=false;try{HAD_SAVED=!!localStorage.getItem(KEY)}catch(e){}
+function hideWelcome(){try{sessionStorage.setItem('tm-welcome','1')}catch(e){}$('#intro').hidden=true}
 function renderIntro(){
-  let done=false;try{done=localStorage.getItem('tm-intro')==='1'}catch(e){}
-  const el=$('#intro');if(done){el.hidden=true;return}
+  let seen=false;try{seen=sessionStorage.getItem('tm-welcome')==='1'}catch(e){}
+  const el=$('#intro');if(seen){el.hidden=true;return}
   el.hidden=false;
-  el.innerHTML=`<h2>Bienvenue dans Tableau Malin</h2><ol>
+  el.innerHTML=`<h2>${HAD_SAVED?'Bon retour sur Tableau Malin':'Bienvenue sur Tableau Malin'}</h2>
+  <p class="hint" style="margin:0">Conçois ton tableau électrique en glissant les appareils : les règles NF C 15-100 sont vérifiées en direct. ${HAD_SAVED?'Ton dernier tableau est affiché ci-dessous.':'Un exemple est affiché ci-dessous.'}</p>
+  <div class="choice">
+   ${HAD_SAVED?`<button type="button" data-w="go"><b>Continuer « ${esc(S.name)} »</b><span>Reprendre là où tu en étais</span></button>`:`<button type="button" data-w="go"><b>Explorer l’exemple</b><span>Une maison de 90 m² déjà conforme</span></button>`}
+   <button type="button" data-w="open"><b>Ouvrir mon fichier</b><span>Un tableau enregistré (.tableau.json)</span></button>
+   <button type="button" data-w="gen"><b>Créer depuis mon logement</b><span>Quelques questions, un tableau complet</span></button>
+   <button type="button" data-w="empty"><b>Partir de zéro</b><span>Un tableau vide à remplir</span></button>
+  </div>
+  <details class="explain"><summary>Comment ça marche</summary><ol class="steps">
   <li>Glisse un appareil (four, clim, frigo…) sur une rangée : le bon disjoncteur et le bon câble sont choisis tout seuls.</li>
   <li>Chaque couleur = un différentiel et les disjoncteurs à sa droite.</li>
-  <li>À droite, le contrôle te dit ce qui bloque le Consuel, avec des boutons pour corriger.</li>
-  <li>Touche un différentiel puis « Tester » pour voir ce qui se coupe.</li></ol>
-  <div class="row-btns" style="margin:0"><button class="btn primary small" type="button" id="introOk">C’est parti</button><button class="btn small" type="button" id="introGen">Créer depuis mon logement</button></div>`;
-  $('#introOk').onclick=()=>{try{localStorage.setItem('tm-intro','1')}catch(e){}el.hidden=true};
-  $('#introGen').onclick=()=>{try{localStorage.setItem('tm-intro','1')}catch(e){}el.hidden=true;$('#bGen').click()};
+  <li>À droite, le contrôle explique ce qui bloque le Consuel, avec des boutons pour corriger.</li>
+  <li>Touche un différentiel puis « Tester » pour voir ce qui se coupe. Un clic sur un départ divisionnaire ouvre son tableau.</li>
+  <li>« Enregistrer / ouvrir » garde ton tableau dans un fichier sur ton ordinateur (Ctrl+S).</li></ol></details>`;
+  el.onclick=e=>{const b=e.target.closest('[data-w]');if(!b)return;const a=b.dataset.w;hideWelcome();
+    if(a==='open')pickFile();if(a==='gen')$('#bGen').click();
+    if(a==='empty')mutate(()=>{const P=generate({...DEFAULT_HOME,name:'Nouveau tableau'});const B=principal(P);B.items=[];B.rows=2;P.boards=[B];P.cur=B.id;S=P;SEL=null});};
 }
+/* Noms préenregistrés pour les repères */
+const ROOMS=['séjour','salon','salle à manger','cuisine','entrée','couloir','WC','salle de bain','salle d’eau','chambre 1','chambre 2','chambre 3','chambre 4','chambre parentale','bureau','buanderie','cellier','dressing','garage','atelier','combles','sous-sol','cave','véranda','terrasse','jardin','extérieur','étage','RDC'];
+function buildDatalists(){
+  const box=document.createElement('div');box.hidden=true;
+  box.innerHTML=Object.keys(CIRC).map(k=>{const n=CIRC[k].n;let names;
+    if(k==='eclairage')names=ROOMS.map(r=>'Écl. '+r);else if(k==='prises')names=ROOMS.map(r=>'PC '+r);
+    else if(k==='div')names=['Départ atelier','Départ garage','Départ étage','Départ abri de jardin','Départ piscine','Départ dépendance'];
+    else names=[n,...['cuisine','buanderie','garage','extérieur','salon','chambre','étage','atelier'].map(r=>n+' '+r)];
+    return `<datalist id="dl-${k}">${names.map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>`}).join('');
+  document.body.appendChild(box);
+}
+buildDatalists();
 renderIntro();
 renderPalette();render();
 </script>

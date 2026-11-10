@@ -7,7 +7,7 @@ const MOD=36, MOD_H=150, ROW_H=330, LEFT=44, TOP=84, MOD_Y=52;
 const W={disj:1,id:2,para:2,cont:1,tl:1,sect:2,prise:3};
 const MAXCAL={1.5:16,2.5:20,4:25,6:32,10:50,16:63};
 const SECS=[1.5,2.5,4,6,10,16];
-const CALS=[2,10,16,20,25,32,40,50,63];
+const CALS=[2,6,10,16,20,25,32,40,50,63];
 const PTABLE=[[10,1.5,2250],[16,1.5,3500],[20,2.5,4500],[25,4,5750],[32,6,7250],[40,10,9200]];
 const DIVTABLE=[[32,6],[40,10],[63,16]];
 const KVA=[3,6,9,12,15,18];
@@ -240,16 +240,19 @@ function optimise(P,b){
   tls.forEach(t=>{const bn=finalBins.find(x=>x.list.some(i=>i.t==='disj'&&i.c.k==='eclairage'))||finalBins[0];if(bn)bn.list.push(t)});
   layout(b,[...head,...feeds],finalBins.map((bn,bi)=>({id:bn.id,list:bi===finalBins.length-1?[...bn.list,...prises]:bn.list})),finalBins.length?[]:prises);
 }
+/* Places utilisables par rangée : on garde 20 % de modules libres sur chaque rangée (arrondi au module supérieur) */
+function rowCap(M){return M-Math.ceil(M*0.2)}
+function reserveNeed(b){return Math.ceil(b.rows*b.mpr*0.2)}
 function layout(b,direct,groups,extra=[]){
-  const M=b.mpr;let row=0,col=0;
-  const at=it=>{const w=W[it.t];if(col+w>M){row++;col=0}it.row=row;it.col=col;col+=w};
+  const M=b.mpr,CAP=rowCap(M);let row=0,col=0;
+  const at=it=>{const w=W[it.t];if(col+w>CAP){row++;col=0}it.row=row;it.col=col;col+=w};
   direct.forEach(i=>{if(i.feed!=='head')i.feed=null;at(i)});
   extra.forEach(i=>{i.feed=null;at(i)});
-  groups.forEach(g=>{const grp=[g.id,...g.list];const w=grp.reduce((a,i)=>a+W[i.t],0);if(col>0&&col+w>M){row++;col=0}
+  groups.forEach(g=>{const grp=[g.id,...g.list];const w=grp.reduce((a,i)=>a+W[i.t],0);if(col>0&&col+w>CAP){row++;col=0}
     grp.forEach((it,k)=>{at(it);if(k>0)it.feed=it.row!==g.id.row?g.id.id:null})});
   b.items=[...new Set([...direct,...extra,...groups.flatMap(g=>[g.id,...g.list])])];
   const used=col===0&&row>0?row:row+1;let rows=Math.max(1,used);
-  const um=usedMods(b);while((rows*M-um)/(rows*M)<0.2)rows++;
+  const um=usedMods(b);while(rows*M-um<Math.ceil(rows*M*0.2))rows++;
   b.rows=Math.min(rows,8);
 }
 /* Ranger sans changer les choix : chaque différentiel garde ses circuits */
@@ -288,10 +291,15 @@ function analyse(P){
       }
       if(sp.max){const keys=Object.keys(sp.max).map(Number);const mxn=sp.max[c.sec]??sp.max[Math.max(...keys.filter(k=>k<=c.sec),keys[0])];
         if((+c.n||0)>mxn)add('err',`${nm} : ${c.n} ${sp.cnt}, c’est trop (maximum ${mxn} en ${fmt(c.sec)} mm²).`,b,it,`Limite NF C 15-100 : ${sp.lim}. Crée un circuit de plus.`);}
-      if(sp.ptab){const I=(+c.p||0)/230;if(c.cal<I)add('err',`${nm} : ${c.p} W demandent ${I.toFixed(1)} A, le disjoncteur ${c.cal} A va sauter.`,b,it,'Prends le calibre au-dessus et la section qui va avec (bouton « Régler tout seul »).')}
+      if(c.k!=='div'&&+c.p>0){
+        const cook=['plaque','cuisiniere'].includes(c.k), I=(+c.p)*(cook?0.8:1)/230, W_=Math.round(+c.p*(cook?0.8:1)).toLocaleString('fr-FR');
+        const up=x=>{const cal=CALS.find(k=>k>=x&&k>=c.cal);if(!cal||c.k==='eclairage'&&cal>16)return [];const sec=Math.max(c.sec,SECS.find(z=>MAXCAL[z]>=cal)||16);return[{label:`Passer en ${cal} A · ${fmt(sec)} mm²`,op:{k:'set',item:it.id,vals:{cal,sec}}}]};
+        if(I>c.cal)add('err',`${nm} : ${W_} W demandent ${I.toFixed(1).replace('.',',')} A, plus que le disjoncteur ${c.cal} A. Il va sauter.`,b,it,`Courant = puissance ÷ 230 V, soit ${W_} ÷ 230 = ${I.toFixed(1).replace('.',',')} A. Un disjoncteur coupe quand le courant dépasse son calibre. Il faut un calibre plus fort et la section de câble qui va avec${c.k==='eclairage'?' (pour l’éclairage, 16 A maximum : partage plutôt en deux circuits)':''}.`,up(I));
+        else if(I>c.cal*0.85&&!['prises','cuisine'].includes(c.k))add('warn',`${nm} : ${I.toFixed(1).replace('.',',')} A pour un disjoncteur ${c.cal} A (${Math.round(I/c.cal*100)} % de sa capacité).`,b,it,'Au-dessus de 85 %, il reste peu de marge : un démarrage de moteur ou un appareil de plus peut le faire sauter. Pas bloquant pour le Consuel.',up(I*1.18));
+      }
       if(c.k==='div'){const db=boardOf(P,c.board);
         if(!db)add('err',`${nm} n’alimente aucun tableau.`,b,it,'Choisis le tableau divisionnaire alimenté dans les réglages du disjoncteur.');
-        else{const I=boardLoad(P,db)/230;if(I>c.cal)add('warn',`${nm} : le tableau « ${db.name} » tire environ ${Math.round(I)} A pour un départ ${c.cal} A.`,b,it,'Augmente le calibre du départ et la section du câble (6 mm²/32 A, 10 mm²/40 A, 16 mm²/63 A).')}}
+        else{const I=boardLoad(P,db)/230;const r=DIVTABLE.find(x=>x[0]>=I*1.1);if(I>c.cal)add('err',`${nm} : le tableau « ${db.name} » tire environ ${Math.round(I)} A pour un départ ${c.cal} A. Il va sauter.`,b,it,'La charge estimée du divisionnaire (ses circuits, avec leurs coefficients d’utilisation) dépasse le calibre du départ. Augmente le calibre et la section : 6 mm²/32 A, 10 mm²/40 A, 16 mm²/63 A.',r?[{label:`Passer en ${r[0]} A · ${fmt(r[1])} mm²`,op:{k:'set',item:it.id,vals:{cal:r[0],sec:r[1]}}}]:[])}}
       if(!id){
         if(c.k==='div'){const db=boardOf(P,c.board);if(db&&!db.items.some(i=>i.t==='id'))add('err',`${nm} : le tableau « ${db.name} » n’a aucun différentiel 30 mA.`,b,it,'Si le départ n’est pas derrière un 30 mA, le tableau divisionnaire doit avoir ses propres interrupteurs différentiels.')}
         else add('err',`${nm} n’est protégé par aucun différentiel 30 mA.`,b,it,'Tous les circuits d’un logement passent par un interrupteur différentiel 30 mA. Place le disjoncteur à droite d’un différentiel (peigne) ou tire un fil vers un différentiel.');
@@ -319,8 +327,10 @@ function analyse(P){
     const ecl=b.items.filter(i=>i.t==='disj'&&i.c.k==='eclairage');
     const eIds=new Set(ecl.map(i=>fm[i.id].by).filter(Boolean));
     if(ecl.length>=2&&eIds.size<2)add('warn',`${b.name} : tout l’éclairage est sur le même différentiel.`,b,null,'Répartis l’éclairage sur au moins deux différentiels. Si l’un saute, une partie du logement reste éclairée.');
-    const tot=b.rows*b.mpr, free=(tot-usedMods(b))/tot;
-    if(free<0.2)add('err',`${b.name} : réserve de ${Math.round(free*100)} % (20 % minimum).`,b,null,'Le tableau garde au moins 20 % de place libre pour les ajouts futurs. Ajoute une rangée.');
+    const tot=b.rows*b.mpr, freeM=tot-usedMods(b), need=reserveNeed(b);
+    if(freeM<need)add('err',`${b.name} : ${freeM} module${freeM>1?'s':''} libre${freeM>1?'s':''} sur ${tot}, il en faut au moins ${need} (réserve de 20 %).`,b,null,`NF C 15-100 : chaque tableau garde une réserve d’au moins 20 % de sa place, arrondie au module supérieur (${tot} × 20 % = ${(tot*0.2).toLocaleString('fr-FR')}, donc ${need} modules). Elle sert aux ajouts futurs sans changer de tableau. Le Consuel la vérifie.`,[{label:'Ajouter une rangée',op:{k:'addrow',board:b.id}}]);
+    else{const cap=rowCap(b.mpr);const full=[];for(let r=0;r<b.rows;r++){const u=b.items.filter(i=>i.row===r).reduce((a,i)=>a+W[i.t],0);if(u>cap)full.push(r+1)}
+      if(full.length)add('warn',`${b.name} : rangée${full.length>1?'s':''} ${full.join(', ')} sans réserve (plus de ${cap} modules utilisés sur ${b.mpr}).`,b,null,`La réserve de 20 % doit être répartie sur toutes les rangées : garde environ ${b.mpr-cap} modules libres par rangée de ${b.mpr}. Pas bloquant si la réserve totale est bonne, mais c’est la bonne pratique des fabricants.`,[{label:'Ranger le tableau',op:{k:'tidy',board:b.id}}])}
     if(b.kind==='div'){
       if(['Annexe','Extérieur'].includes(b.etage))add('info',`${b.name} est dans un bâtiment séparé : câble enterré.`,b,null,'Câble U1000 R2V (ou AR2V) dans une gaine TPC rouge, à 50 cm de profondeur minimum, avec un grillage avertisseur rouge 20 cm au-dessus. Pense à la terre du bâtiment et indique la longueur du câble sur le départ pour vérifier la chute de tension.');
       if(!b.items.some(i=>i.t==='sect'))add('warn',`${b.name} : ajoute un interrupteur de tête.`,b,null,'Un tableau divisionnaire a un dispositif de coupure en tête pour couper tout le tableau sur place.');
@@ -347,6 +357,11 @@ function analyse(P){
   if(levels.length>=2&&upper>=6&&!P.boards.some(b=>b.kind==='div'))add('info',`${levels.length} niveaux et ${upper} circuits hors rez-de-chaussée : pense à un tableau divisionnaire à l’étage.`,prin,null,'Un tableau à l’étage raccourcit les câbles (moins de chute de tension, moins de cuivre) et simplifie les dépannages. Il est alimenté par un seul câble depuis le tableau principal.');
   const s=+P.surf||0, req=s<=35?2:s<=100?3:4;
   if(allIds.length<req)add('err',`Pour ${s} m², il faut au moins ${req} interrupteurs différentiels 30 mA (tu en as ${allIds.length}).`,prin,null,'NF C 15-100 : jusqu’à 35 m² : 2 · de 35 à 100 m² : 3 · plus de 100 m² : 4, dont au moins un type A.');
+  const allC=P.boards.flatMap(b=>b.items.filter(i=>i.t==='disj').map(i=>i.c));
+  if(!allC.some(c=>(c.k==='plaque'||c.k==='cuisiniere')&&c.cal>=32))add('warn','Pas de circuit cuisson 32 A.',prin,null,'La NF C 15-100 prévoit un circuit spécialisé 32 A en 6 mm² pour la plaque ou la cuisinière, même si tu cuisines au gaz aujourd’hui : il sert au futur occupant.');
+  const spe=allC.filter(c=>['four','ll','lv','sl','congel','frigo','ce','thermo','mo'].includes(c.k)).length;
+  if(spe<3)add('info',`${spe} circuit${spe>1?'s':''} spécialisé${spe>1?'s':''} 16/20 A (lave-linge, lave-vaisselle, four…).`,prin,null,'La norme demande plusieurs circuits spécialisés pour le gros électroménager (au moins 3 selon les sources, plus selon la taille du logement). Chaque gros appareil a son propre circuit.');
+  if(!allC.some(c=>c.k==='com'))add('warn','Pas de circuit pour le tableau de communication.',prin,null,'Le coffret de communication (box, réseau, TV) est alimenté par un circuit dédié. Le Consuel vérifie sa présence.');
   if(!allIds.some(d=>d.type!=='AC'))add('err','Il faut au moins un différentiel type A (ou F).',prin,null,'Le type A protège la plaque de cuisson et le lave-linge.');
   if(P.foudre&&!prin.items.some(i=>i.t==='para'))add('err','Parafoudre obligatoire dans ta zone (ou bâtiment avec paratonnerre).',prin,null,'Le parafoudre se place en tête du tableau principal, avec son dispositif de déconnexion.');
   const pf=demand(P);
@@ -379,6 +394,22 @@ function addDivBoard(P,key){
   return D;
 }
 
+/* Prix publics indicatifs TTC (France, 2025-2026), marque « milieu de gamme ».
+   Ordres de grandeur pour un budget, à vérifier chez le fournisseur. */
+const BRAND_K={generic:.8,schneider:1,legrand:1.1};
+function unitPrice(key){
+  const [t,a,b]=key.split('-');
+  if(t==='coffret'){const [r,m]=a.split('x').map(Number);return Math.round(([0,28,50,75,100,130,160,190,220][r]||220)*(m===18?1.3:1))}
+  if(t==='disj'){const c=+a;return c<=20?14:c<=32?17:c<=40?26:42}
+  if(t==='id'){const c=+a;return({AC:c>=63?62:42,A:c>=63?105:72,F:c>=63?160:125})[b]||72}
+  if(t==='peigne')return +a===18?14:10;
+  if(t==='fil')return 4;
+  if(t==='m')return({para:95,cont:32,tl:30,sect:26,prise:16})[a]||20;
+  if(t==='cable')return({'1.5':0.9,'2.5':1.4,'4':2.2,'6':3.5,'10':6,'16':9})[a]||2;
+  return 0;
+}
+function priceOf(P,key){const own=P.prices&&P.prices[key];if(own!==undefined&&own!=='')return +own;const k=key.startsWith('cable')?1:(BRAND_K[P.brand]||1);return Math.round(unitPrice(key)*k*100)/100}
+
 /* Applique une correction proposée par analyse() */
 function applyFix(P,op){
   const find=id=>{for(const b of P.boards){const it=b.items.find(i=>i.id===id);if(it)return it}return null};
@@ -386,7 +417,11 @@ function applyFix(P,op){
   if(op.k==='idtype'){const d=find(op.id);if(d)d.type=op.type}
   if(op.k==='proj')P[op.key]=op.v;
   if(op.k==='field'){const it=find(op.item);if(it&&it.c)it.c[op.key]=op.v}
+  if(op.k==='set'){const it=find(op.item);if(it&&it.c)Object.assign(it.c,op.vals)}
+  const bd=op.board&&P.boards.find(b=>b.id===op.board);
+  if(op.k==='addrow'&&bd)bd.rows=Math.min(8,bd.rows+1);
+  if(op.k==='tidy'&&bd)tidy(P,bd);
 }
-if(typeof module!=='undefined')module.exports={DIVTPL,addDivBoard,vdrop,ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
+if(typeof module!=='undefined')module.exports={unitPrice,priceOf,rowCap,reserveNeed,DIVTPL,addDivBoard,vdrop,ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
   newBoard,mkCirc,mkItem,generate,DEFAULT_HOME,loadOf,boardLoad,installed,principal,demand,suggestKva,recommend,feedMap,
   sortedIds,idName,usedMods,itemName,optimise,layout,tidy,attachDiv,analyse,boardOf,fmt};

@@ -26,6 +26,9 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
 - **Chute de tension** : indique la longueur d’un câble, l’outil calcule la chute et propose la bonne section.
 - **Tester un différentiel** : il « saute », ses circuits s’éteignent et le courant animé s’arrête dans les fils.
 - **Rangées nommées**, repères enregistrés pendant la frappe, guide de démarrage.
+- **Enregistrer / ouvrir** un fichier projet, **export PDF**, écran d’accueil (continuer, ouvrir, créer).
+- **Prix indicatifs** (TTC, modifiables) et budget du tableau, par marque.
+- **Contrôle immédiat** à chaque disjoncteur posé ou modifié : courant = puissance ÷ 230 V comparé au calibre, marge, câble.
 - **Matériel** : gammes Schneider (Resi9) ou Legrand (DX³), liste d’achat selon ton stock.
 - **Assistant « Créer depuis mon logement »** : génère un tableau complet et conforme à partir de quelques questions.
 - **Manipulation** : toucher un module ouvre une barre Régler / Dupliquer / Supprimer. On peut aussi glisser un module vers la corbeille. Un module lâché entre deux autres s'insère et décale la rangée.
@@ -34,9 +37,11 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
 
 ## Utiliser
 
-Ouvrir `index.html` dans un navigateur, avec `regles.js` à côté. Aucune installation, aucun serveur. Le projet est enregistré dans le navigateur.
+**En ligne :** https://nodyxstudio.github.io/Tableau-electrique/
 
-Pour avoir un lien public : dans GitHub, Settings → Pages → *Deploy from a branch* → `main` / `/ (root)`. Le site est alors servi sur `https://nodyxstudio.github.io/tableau-electrique/`.
+Aucune installation et aucun compte. Chaque personne travaille dans son navigateur. Pour garder un tableau, **Enregistrer / ouvrir → Enregistrer sur mon ordinateur** crée un fichier `.tableau.json`, qu’on rouvre plus tard avec **Ouvrir un fichier**. **PDF** exporte le schéma, les circuits, le contrôle et le matériel. Rien n’est envoyé sur un serveur.
+
+En local : ouvrir `index.html` avec `regles.js` dans le même dossier.
 
 ## Organisation
 

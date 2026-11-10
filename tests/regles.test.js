@@ -198,3 +198,33 @@ test('chaudière gaz : circuit 16 A dédié', () => {
   assert.equal(R.CIRC.chaudiere.n, 'Chaudière gaz');
   assert.equal(R.CIRC.chaudiere.cal, 16);
 });
+
+test('un four de 3 500 W sur un disjoncteur 10 A va sauter, avec correction', () => {
+  const d = disj('four', { label: 'Four', p: 3500 }); d.c.cal = 10;
+  const { P } = projet([d]);
+  const e = R.analyse(P).find(i => i.item === d.id && /va sauter/.test(i.msg));
+  assert.equal(e.lvl, 'err');
+  R.applyFix(P, e.fix[0].op);
+  assert.equal(d.c.cal, 16); assert.equal(d.c.sec, 2.5);
+  assert.ok(!R.analyse(P).some(i => i.item === d.id && i.lvl === 'err'));
+});
+
+test('réserve : 20 % arrondi au module supérieur, et répartie sur les rangées', () => {
+  assert.equal(R.rowCap(13), 10); assert.equal(R.rowCap(18), 14);
+  const P = R.generate(R.DEFAULT_HOME);
+  for (const b of P.boards) for (let r = 0; r < b.rows; r++)
+    assert.ok(b.items.filter(i => i.row === r).reduce((a, i) => a + R.W[i.t], 0) <= R.rowCap(b.mpr));
+  const full = Array.from({ length: 10 }, (_, k) => disj('autre', { label: 'X' + k, p: 10 }));
+  const { P: P2, B } = projet(full, { rows: 1 });
+  const e = R.analyse(P2).find(i => /réserve de 20 %/.test(i.msg));
+  assert.match(e.msg, /il en faut au moins 3/);
+  R.applyFix(P2, e.fix[0].op);
+  assert.equal(B.rows, 2);
+});
+
+test('exemples générés : aucun conseil inutile', () => {
+  for (const h of [{}, { niveaux: 2 }, { div: true, ve: 'irve' }]) {
+    const P = R.generate({ ...R.DEFAULT_HOME, ...h });
+    assert.deepEqual(R.analyse(P).filter(i => i.lvl !== 'info').map(i => i.msg), [], JSON.stringify(h));
+  }
+});
