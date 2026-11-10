@@ -264,13 +264,19 @@ test('pièces et circuits : assez de circuits pour toutes les prises et lumière
   assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /circuits de prises n’en prévoient que/.test(i.msg)));
 });
 
-test('différentiel : plus de 8 kVA de chauffage impose un 63 A', () => {
-  const ch = [1, 2, 3].map(k => { const d = disj('chauffage', { label: 'Ch' + k, p: 3000 }); return d; });
-  const { P, id } = projet(ch, { type: 'AC', cal: 40 });
-  const e = R.analyse(P).find(i => /il faut un 63 A/.test(i.msg));
+test('différentiel : règle de l’aval (chauffage en entier, le reste à moitié) ou de l’amont', () => {
+  // 3 chauffages 16 A (48 A) + 2 prises 20 A (20 A) = 68 A > 40 A, et AGCP réglé à 90 A (18 kVA) : 40 A refusé
+  const c = [1, 2, 3].map(k => disj('chauffage', { label: 'Ch' + k, p: 3000 })).concat([disj('prises', { label: 'P1', n: 4 }), disj('prises', { label: 'P2', n: 4 })]);
+  const { P, id } = projet(c, { type: 'AC', cal: 40 });
+  P.kva = 18;
+  const e = R.analyse(P).find(i => /règle de l’aval/.test(i.msg));
   assert.equal(e.lvl, 'err');
-  R.applyFix(P, e.fix[0].op);
-  assert.equal(id.cal, 63);
+  assert.match(e.why, /48 A/);
+  // AGCP 60 A (12 kVA) : un 63 A passe par la règle de l’amont ; 40 A toujours refusé
+  P.kva = 12;
+  assert.ok(R.analyse(P).some(i => /règle de l’aval/.test(i.msg)));
+  id.cal = 63;
+  assert.ok(!R.analyse(P).some(i => /règle de l’aval/.test(i.msg)));
 });
 
 test('éclairage sur un seul différentiel : bloquant pour tout le logement', () => {

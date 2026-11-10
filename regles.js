@@ -92,6 +92,13 @@ function roomReq(r){const s=+r.surf||0;
   return{socles:so,pts:1};}
 function mkRoom(type,name,surf,o={}){const r={id:uid(),type,name,surf,etage:o.etage||'',socles:0,pts:1};r.socles=o.socles??roomReq(r).socles;r.pts=o.pts??1;return r}
 
+/* Calibre des interrupteurs différentiels (NF C 15-100)
+   Règle de l'aval : 1 × calibres chauffage, eau chaude, recharge VE + 0,5 × calibres des autres circuits ≤ calibre de l'ID.
+   Règle de l'amont : ou bien calibre de l'ID ≥ réglage du disjoncteur de branchement (ou du départ qui alimente le tableau). */
+const FULLK=new Set(['chauffage','seche','plancher','pac','ce','thermo','irve','prv']);
+function wCal(it){if(it.t!=='disj')return 0;if(it.c.k==='div')return +it.c.cal;return FULLK.has(it.c.k)?+it.c.cal:+it.c.cal*0.5}
+function amontA(P,b){if(b.kind==='principal')return P.kva*5;const f=principal(P).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return f?+f.c.cal:P.kva*5}
+
 /* Rangement de la palette par pièce / usage */
 const GROUPS=[
   ['Pièces : lumière et prises',['eclairage','prises','volets','com']],
@@ -177,8 +184,9 @@ function generate(h){
     const f=mkCirc('div',{label:'Départ garage'});f.c.board=D.id;f.feed='head';B.items.push(f);
     optimise(P,D);Object.assign(f.c,recommend(f.c,P));
   }
-  optimise(P,B);
   P.kva=suggestKva(P);
+  P.boards.filter(x=>x.kind==='div').forEach(D=>optimise(P,D));
+  optimise(P,B);
   return P;
 }
 
@@ -235,8 +243,8 @@ function optimise(P,b){
   const conts=b.items.filter(i=>i.t==='cont'), tls=b.items.filter(i=>i.t==='tl'), prises=b.items.filter(i=>i.t==='prise');
   const head=[...b.items.filter(i=>i.t==='sect'),...b.items.filter(i=>i.t==='para')];
   const L=i=>loadOf(P,i), sp=i=>CIRC[i.c.k];
-  const bins=[];const newBin=(type,cal)=>{const bn={id:mkItem('id',{type,cal}),list:[],load:0};bins.push(bn);return bn};
-  const put=(bn,i)=>{bn.list.push(i);bn.load+=L(i)};
+  const bins=[];const AM=amontA(P,b),CAPW=AM<=63?Infinity:63;const newBin=(type,cal)=>{const bn={id:mkItem('id',{type,cal}),list:[],load:0,w:0};bins.push(bn);return bn};
+  const put=(bn,i)=>{bn.list.push(i);bn.load+=L(i);bn.w+=wCal(i)};
   const irve=circ.filter(i=>sp(i).irve), needA=circ.filter(i=>sp(i).A), recA=circ.filter(i=>sp(i).recA);
   const rest=circ.filter(i=>!sp(i).irve&&!sp(i).A&&!sp(i).recA);
   irve.forEach(i=>put(newBin('A',40),i));
@@ -247,8 +255,8 @@ function optimise(P,b){
   const nAC=isP?(s<=35?1:s<=100?2:3):(rest.length||recA.length&&!nA?Math.max(1,Math.ceil(rest.length/8)):0);
   const ACbins=Array.from({length:nAC},()=>newBin('AC',isP&&s<=35?25:40));
   const general=[...Abins,...ACbins];
-  const pick=(c,l)=>{let best=null;for(const bn of c){if(bn.list.length>=8||bn.load+l>63*230)continue;if(!best||bn.load<best.load)best=bn}return best};
-  const place=(i,pref)=>{let bn=pick(pref,L(i))||pick(general,L(i));if(!bn){bn=newBin('AC',40);ACbins.push(bn);general.push(bn)}put(bn,i)};
+  const pick=(c,l,i)=>{let best=null;for(const bn of c){if(bn.list.length>=8||bn.load+l>63*230||(i&&bn.w+wCal(i)>CAPW))continue;if(!best||bn.load<best.load)best=bn}return best};
+  const place=(i,pref)=>{let bn=pick(pref,L(i),i)||pick(general,L(i),i);if(!bn){bn=newBin('AC',40);ACbins.push(bn);general.push(bn)}put(bn,i)};
   recA.forEach(i=>place(i,Abins.length?Abins:general));
   const rr=(list,off)=>list.forEach((i,k)=>{const pool=ACbins.length>=2?ACbins:general;place(i,[pool[(k+off)%pool.length]])});
   const byEt=(a,c)=>String(a.c.etage||'').localeCompare(String(c.c.etage||''));
@@ -259,7 +267,7 @@ function optimise(P,b){
   let finalBins=bins.filter(bn=>bn.list.length||isP);
   finalBins.forEach(bn=>{
     bn.list.sort((a,c)=>order.indexOf(a.c.k)-order.indexOf(c.c.k));
-    const I=bn.load/230;bn.id.cal=bn.id.cal===25&&I<=25?25:I<=40?40:63;
+    const I=bn.load/230,aw=bn.w;bn.id.cal=bn.id.cal===25&&I<=25&&aw<=25?25:(I<=40&&aw<=40?40:63);
   });
   conts.forEach(ct=>{const bn=finalBins.find(x=>x.list.some(i=>i.c.k==='ce'));if(bn){const k=bn.list.findIndex(i=>i.c.k==='ce');bn.list.splice(k+1,0,ct)}else if(finalBins[0])finalBins[0].list.push(ct)});
   tls.forEach(t=>{const bn=finalBins.find(x=>x.list.some(i=>i.t==='disj'&&i.c.k==='eclairage'))||finalBins[0];if(bn)bn.list.push(t)});
@@ -346,8 +354,10 @@ function analyse(P){
       const cs=idCirc[d.id].filter(x=>x.t==='disj'||x.t==='prise');const nm=`${idName(b,d)} (${b.name})`;
       if(cs.length>8)add('err',`${nm} protège ${cs.length} circuits (8 maximum).`,b,d,'Un interrupteur différentiel protège au plus 8 circuits. Ajoute un différentiel.');
       if(!cs.length)add('warn',`${nm} ne protège aucun circuit.`,b,d,'Place des disjoncteurs à sa droite sur la même rangée, ou câble-les vers lui.');
-      const heat=cs.filter(i=>i.t==='disj'&&['chauffage','ce','thermo','seche','plancher'].includes(i.c.k)).reduce((a,i)=>a+(+i.c.p||0),0);
-      if(heat>8000&&d.cal<63)add('err',`${nm} : ${Math.round(heat/100)/10} kW de chauffage et d’eau chaude derrière un ${d.cal} A, il faut un 63 A.`,b,d,'Quand les circuits de chauffage et de chauffe-eau placés sous un même interrupteur différentiel dépassent 8 kVA au total, il doit être de 63 A. Sinon, répartis ces circuits sur plusieurs différentiels.',[{label:'Passer en 63 A',op:{k:'idcal',id:d.id,cal:63}}]);
+      const aval=cs.reduce((a,i)=>a+wCal(i),0), am=amontA(P,b);
+      if(d.cal<aval&&d.cal<am){const full=cs.filter(i=>i.t==='disj'&&(FULLK.has(i.c.k)||i.c.k==='div')).reduce((a,i)=>a+(+i.c.cal),0),half=cs.filter(i=>i.t==='disj'&&!FULLK.has(i.c.k)&&i.c.k!=='div').reduce((a,i)=>a+(+i.c.cal),0);
+        const nc=[25,40,63].find(x=>x>=aval)||(63>=am?63:null);
+        add('err',`${nm} : calibre ${d.cal} A trop faible (règle de l’aval : ${fmt(Math.round(aval*10)/10)} A).`,b,d,`NF C 15-100, règle de l’aval : on compte en entier les disjoncteurs du chauffage, de l’eau chaude et de la recharge de voiture (${full} A), et la moitié des autres (${half} A ÷ 2 = ${fmt(half/2)} A). Total ${fmt(Math.round(aval*10)/10)} A : le différentiel doit être au moins de ce calibre. Sinon, règle de l’amont : un différentiel au moins égal au réglage ${b.kind==='principal'?'du disjoncteur de branchement':'du départ qui alimente ce tableau'} (${am} A) convient aussi.${nc?'':' Ici, aucun calibre ne suffit : répartis des circuits sur un autre différentiel.'}`,nc?[{label:`Passer en ${nc} A`,op:{k:'idcal',id:d.id,cal:nc}}]:[{label:'Optimiser le tableau',op:{k:'optimise',board:b.id}}]);}
       if(d.cal===25&&cs.some(i=>i.t==='disj'&&(['plaque','cuisiniere','chauffage','ce','plancher','irve'].includes(i.c.k))))add('warn',`${nm} : un 25 A est réservé aux petits circuits.`,b,d,'Le différentiel 25 A sert dans les petits logements (35 m² ou moins) aux circuits légers. Pour la cuisson, le chauffage ou l’eau chaude, prends un 40 A.',[{label:'Passer en 40 A',op:{k:'idcal',id:d.id,cal:40}}]);
       const I=cs.reduce((a,i)=>a+loadOf(P,i),0)/230;
       if(I>d.cal)add('warn',`${nm} : environ ${Math.round(I)} A en charge pour un calibre ${d.cal} A.`,b,d,'Passe en 63 A ou répartis les gros appareils (plaque, chauffage, recharge) sur d’autres différentiels.');

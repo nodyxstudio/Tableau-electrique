@@ -291,7 +291,7 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
 if(!S||!S.boards||!S.boards.length)S=generate(DEFAULT_HOME);
 let SEL=null, PTAB='verif', ISSUES=[];
 /* Effets : courant qui circule, coupures de test (non enregistrées) */
-let TRIP=new Set(), FLOW=true, LASTERR=null;try{FLOW=localStorage.getItem('tm-flow')!=='0'}catch(e){}
+let TRIP=new Set(), FLOW=true, LASTERR=null, ONLYERR=false;try{FLOW=localStorage.getItem('tm-flow')!=='0'}catch(e){}
 function boardOn(b){if(b.kind==='principal')return true;const P0=principal(S);const f=P0.items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return !!f&&itemOn(P0,f)}
 function itemOn(b,it){if(!boardOn(b)||TRIP.has(it.id))return false;if(it.t!=='sect'&&b.items.some(i=>i.t==='sect'&&TRIP.has(i.id)))return false;const f=feedMap(b)[it.id];return !(f&&f.by&&TRIP.has(f.by))}
 function ON(it){return itemOn(cur(),it)}
@@ -358,7 +358,7 @@ function boardDims(b){return{Wd:LEFT*2+b.mpr*MOD,Hd:TOP+b.rows*ROW_H+6}}
 function pos(it){return{x:LEFT+it.col*MOD,y:TOP+it.row*ROW_H+MOD_Y}}
 function renderBoard(){
   const b=cur(), fm=feedMap(b), {Wd,Hd}=boardDims(b), B=S.brand;
-  const st={};ISSUES.forEach(i=>{if(i.item){const r={err:3,warn:2}[i.lvl]||0;st[i.item]=Math.max(st[i.item]||0,r)}});
+  const st={};ISSUES.forEach(i=>{if(i.item&&!(ONLYERR&&i.lvl!=='err')){const r={err:3,warn:2}[i.lvl]||0;st[i.item]=Math.max(st[i.item]||0,r)}});
   let s=`<svg id="bsvg" viewBox="0 0 ${Wd} ${Hd}" style="max-width:${Math.round(Wd*1.55)}px" role="img" aria-label="Tableau ${esc(b.name)}">`;
   s+=`<defs><linearGradient id="rail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--rail)"/><stop offset=".5" stop-color="var(--slot)"/><stop offset="1" stop-color="var(--rail)"/></linearGradient></defs>`;
   s+=`<rect x="3" y="3" width="${Wd-6}" height="${Hd-6}" rx="16" fill="var(--coffret)" stroke="var(--coffret-edge)" stroke-width="3"/>`;
@@ -624,6 +624,15 @@ function roomsHTML(){
   h+=`</tbody></table></div><div class="row-btns"><button class="btn small" type="button" data-act="addRoom">Ajouter une pièce</button></div>`;
   return h;
 }
+const TERRE=[
+  'Prise de terre : résistance inférieure à 100 Ω (avec un disjoncteur de branchement 500 mA), mesurée au telluromètre. En neuf : boucle à fond de fouille ou piquet.',
+  'Conducteur de terre jusqu’à la barrette de coupure : 16 mm² en cuivre isolé (25 mm² s’il est nu).',
+  'Barrette de coupure (pour pouvoir mesurer) et borne principale de terre, dans la gaine technique logement.',
+  'Liaison équipotentielle principale : les canalisations métalliques (eau, gaz, chauffage) reliées à la borne de terre.',
+  'Salle de bain : liaison équipotentielle locale (2,5 mm² protégé, 4 mm² sinon) entre les éléments métalliques.',
+  'Chaque circuit a son conducteur de terre vert-jaune, de même section que la phase ; toutes les prises sont 2P+T.'
+];
+const TERRE_HTML=`<div class="callout"><b>Attention à la terre.</b> Elle ne se dessine pas dans le tableau, mais sans terre conforme, pas d’attestation Consuel, même avec un tableau parfait. Elle protège les personnes : c’est grâce à elle que les différentiels 30 mA coupent quand un appareil fuit.</div><ul class="rules">${TERRE.map(t=>`<li>${t}</li>`).join('')}</ul><p class="hint">Valeurs usuelles des guides fabricants ; fais confirmer par ton électricien.</p>`;
 function bilanHTML(){
   const prin=principal(S), pf=demand(S), pi=installed(S), sug=suggestKva(S);
   let h=`<h3>Ton logement</h3>
@@ -634,6 +643,7 @@ function bilanHTML(){
   <label class="field"><span>Câble d’arrivée</span><select data-p="arr">${sel(['auto','10','16','25'],String(S.arr||'auto'),x=>x==='auto'?`Automatique (${S.kva>12?16:10} mm²)`:x+' mm² (AGCP ≤ '+ARRMAX[x]+' A)')}</select><span class="note">Le câble entre l’AGCP Enedis et ton tableau. 10 mm² suffit jusqu’à 12 kVA (60 A).</span></label>
   <label class="field"><span>Zone foudre</span><select data-p="foudre">${sel(['0','1'],S.foudre?'1':'0',x=>x==='1'?'Oui : parafoudre obligatoire':'Non')}</select></label>
   <h3>Pièces du logement</h3>${roomsHTML()}
+  <h3>La terre</h3>${TERRE_HTML}
   <h3>Bilan de puissance</h3>
   <div class="kpis"><div class="kpi"><small>Puissance installée</small><b>${kw(pi)}</b></div><div class="kpi"><small>Puissance appelée</small><b>${kw(pf)}</b></div><div class="kpi"><small>Courant estimé</small><b>${Math.round(pf/230)} A</b></div><div class="kpi"><small>Abonnement conseillé</small><b>${sug} kVA</b></div></div>
   <p class="hint">Tout ne marche pas en même temps. Chaque circuit compte avec un coefficient (prises 0,3 · éclairage 0,7 · gros électroménager 0,6 · chauffage, clim, chauffe-eau, recharge 1), puis le total est multiplié par 0,7 pour l’ensemble du logement. En heures creuses, le chauffe-eau et la recharge de la voiture sont comptés la nuit, quand la cuisine et le reste tournent peu.</p>
@@ -707,6 +717,7 @@ function memoHTML(){
   <li>Parafoudre en zone foudre ou avec paratonnerre.</li>
   <li>Charge de chaque différentiel cohérente avec son calibre ; puissance totale cohérente avec l’abonnement.</li>
   </ul>
+  <h3>La terre</h3>${TERRE_HTML}
   <h3>À vérifier sur le chantier</h3><ul class="rules">
   <li>Organes de commande du tableau entre 1 m et 1,80 m du sol (0,75 à 1,30 m pour un logement accessible PMR).</li>
   <li>Tableau dans la gaine technique logement (GTL), jamais dans une salle d’eau.</li>
@@ -1045,17 +1056,88 @@ function openFileModal(){
   <details class="explain"><summary>Pas de téléchargement possible ? Copier le projet en texte</summary><p class="hint">Copie ce texte et garde-le. Pour le reprendre, colle-le ici puis « Charger ce texte ».</p><textarea id="io">${esc(projectFile())}</textarea><div class="row-btns"><button class="btn small" type="button" id="ioCopy">Copier</button><button class="btn small" type="button" id="ioLoad">Charger ce texte</button></div></details>
   <div class="row-btns"><button class="btn" type="button" data-close>Fermer</button></div>`);
   m.addEventListener('click',e=>{const b=e.target.closest('[data-io]');if(!b)return;const a=b.dataset.io;
-    if(a==='save')saveProject();if(a==='open')pickFile();if(a==='pdf'){closeModal();makePDF()}if(a==='new'){closeModal();$('#bGen').click()}});
+    if(a==='save')saveProject();if(a==='open')pickFile();if(a==='pdf'){closeModal();openExport()}if(a==='new'){closeModal();$('#bGen').click()}});
   $('#ioCopy',m).onclick=()=>copy($('#io',m).value);
   $('#ioLoad',m).onclick=()=>{try{const P=readProject($('#io',m).value);mutate(()=>{S=P;SEL=null});closeModal();renderPalette();toast('Projet chargé')}catch(e){toast('Ce texte n’est pas un projet Chouette Tableau valide')}};
 }
 $('#bIO').addEventListener('click',openFileModal);
-$('#bPDF').addEventListener('click',()=>makePDF());
+$('#bPDF').addEventListener('click',openExport);
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});
 
+function openExport(){
+  const m=openModal(`<h2>Exporter</h2><p class="hint">Choisis le document à créer.</p>
+  <div class="choice">
+   <button type="button" data-x="full"><b>Dossier complet</b><span>Schéma, circuits, pièces, contrôle avec tous les conseils, matériel</span></button>
+   <button type="button" data-x="clean"><b>Dossier sans conseils</b><span>La même chose, en version propre : seuls les points bloquants restent</span></button>
+   <button type="button" data-x="devis"><b>Devis estimatif</b><span>Matériel et main d’œuvre, HT, TVA, TTC</span></button>
+  </div><div class="row-btns"><button class="btn" type="button" data-close>Fermer</button></div>`);
+  m.addEventListener('click',e=>{const b=e.target.closest('[data-x]');if(!b)return;const x=b.dataset.x;closeModal();if(x==='full')makePDF({advice:true});if(x==='clean')makePDF({advice:false});if(x==='devis')openDevis()});
+}
+const DEVIS0={from:'',to:'',chantier:'',rate:50,hTab:4,hDiv:2,hCirc:0.75,hTest:1,tva:20,cables:true};
+function devisData(){const d={...DEVIS0,...(S.devis||{})};const {list,cables}=needs();
+  const lines=[];list.forEach(e=>lines.push({g:'Fourniture',name:e.name,q:e.n,u:'u',pu:Math.round(priceOf(S,e.k)/1.2*100)/100}));
+  if(d.cables)Object.entries(cables).forEach(([sec,c])=>{if(c.m)lines.push({g:'Fourniture',name:`Câble 3G${fmt(sec)} mm² R2V`,q:c.m,u:'m',pu:Math.round(priceOf(S,'cable-'+sec)/1.2*100)/100})});
+  const nCirc=S.boards.reduce((a,b)=>a+b.items.filter(i=>i.t==='disj').length,0), nDiv=S.boards.filter(b=>b.kind==='div').length;
+  lines.push({g:'Main d’œuvre',name:'Pose, câblage et repérage du tableau principal',q:+d.hTab,u:'h',pu:+d.rate});
+  if(nDiv)lines.push({g:'Main d’œuvre',name:`Pose et câblage des tableaux divisionnaires (${nDiv})`,q:+d.hDiv*nDiv,u:'h',pu:+d.rate});
+  lines.push({g:'Main d’œuvre',name:`Raccordement des circuits au tableau (${nCirc} circuits)`,q:Math.round(+d.hCirc*nCirc*100)/100,u:'h',pu:+d.rate});
+  lines.push({g:'Main d’œuvre',name:'Mise en service, essais des différentiels, contrôle',q:+d.hTest,u:'h',pu:+d.rate});
+  const ht=lines.reduce((a,l)=>a+l.q*l.pu,0),tva=ht*(+d.tva)/100;return{d,lines,ht,tva,ttc:ht+tva};
+}
+function openDevis(){
+  const d={...DEVIS0,...(S.devis||{})};
+  const m=openModal(`<h2>Devis estimatif</h2><p class="hint">Un devis propre, sans conseils, à partir du matériel du projet et de tes prix. Tout est modifiable. Les prix du matériel sont ceux de l’onglet Matériel (convertis en HT).</p>
+  <form id="dvf"><div class="grid2">
+   <label class="field"><span>Taux horaire HT (€)</span><input id="dv-rate" type="number" min="0" step="1" value="${d.rate}"></label>
+   <label class="field"><span>TVA</span><select id="dv-tva">${sel(['20','10','5.5'],String(d.tva),x=>x.replace('.',',')+' %')}</select></label>
+   <label class="field"><span>Tableau principal (h)</span><input id="dv-hTab" type="number" min="0" step="0.5" value="${d.hTab}"></label>
+   <label class="field"><span>Par divisionnaire (h)</span><input id="dv-hDiv" type="number" min="0" step="0.5" value="${d.hDiv}"></label>
+   <label class="field"><span>Par circuit (h)</span><input id="dv-hCirc" type="number" min="0" step="0.25" value="${d.hCirc}"></label>
+   <label class="field"><span>Mise en service (h)</span><input id="dv-hTest" type="number" min="0" step="0.5" value="${d.hTest}"></label>
+  </div>
+  <label class="field wide"><span>Entreprise (nom, adresse, SIRET, contact)</span><textarea id="dv-from" style="min-height:70px">${esc(d.from)}</textarea></label>
+  <label class="field wide"><span>Client</span><textarea id="dv-to" style="min-height:56px">${esc(d.to)}</textarea></label>
+  <label class="field wide"><span>Adresse du chantier</span><input id="dv-chantier" type="text" value="${esc(d.chantier)}"></label>
+  <div class="checks"><label><input type="checkbox" id="dv-cables" ${d.cables?'checked':''}> Inclure les câbles (selon les longueurs indiquées)</label></div>
+  <div class="callout" id="dvTot"></div>
+  <p class="hint">La TVA à 10 % s’applique en général aux travaux de rénovation dans un logement de plus de 2 ans (attestation du client), 20 % au neuf.</p>
+  <div class="row-btns"><button class="btn primary" type="submit">Créer le devis PDF</button><button class="btn" type="button" data-close>Fermer</button></div></form>`);
+  const read=()=>{const g=k=>$('#dv-'+k,m);S.devis={from:g('from').value,to:g('to').value,chantier:g('chantier').value,rate:+g('rate').value||0,hTab:+g('hTab').value||0,hDiv:+g('hDiv').value||0,hCirc:+g('hCirc').value||0,hTest:+g('hTest').value||0,tva:+g('tva').value,cables:g('cables').checked};save()};
+  const upd=()=>{read();const x=devisData();$('#dvTot',m).innerHTML=`Estimation : <b>${eur(x.ht)} HT</b> · TVA ${eur(x.tva)} · <b>${eur(x.ttc)} TTC</b>`};
+  m.addEventListener('input',upd);m.addEventListener('change',upd);upd();
+  $('#dvf',m).addEventListener('submit',e=>{e.preventDefault();read();closeModal();makeDevis()});
+}
+async function makeDevis(){
+  if(!window.jspdf){toast('Le module PDF n’a pas pu se charger. Vérifie ta connexion puis réessaie.');return}
+  const T=t=>String(t??'').replace(/[\u202F\u00A0]/g,' ').replace(/[^\x00-\xFF€…’‘“”«»·–—œŒ\n]/g,'');
+  const {jsPDF}=window.jspdf, doc=new jsPDF({unit:'mm',format:'a4'}), M=15, PW=210;let y=M;
+  const eur=v=>(Math.round(v*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+  const x=devisData(), d=x.d, now=new Date(), num='DE-'+now.toISOString().slice(0,10).replace(/-/g,'')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
+  const need=h=>{if(y+h>275){doc.addPage();y=M}};
+  doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(16,19,26);doc.text('DEVIS ESTIMATIF',M,y+7);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(90);doc.text(T(`N° ${num} · ${now.toLocaleDateString('fr-FR')} · valable 1 mois`),PW-M,y+7,{align:'right'});y+=16;
+  const block=(t,txt0,xx,w)=>{doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(120);doc.text(t,xx,y);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(30);const l=doc.splitTextToSize(T(txt0||'—'),w);doc.text(l,xx,y+5);return l.length};
+  const h1=block('ÉMETTEUR',d.from,M,85),h2=block('CLIENT',d.to+(d.chantier?'\nChantier : '+d.chantier:''),PW-M-80,80);y+=Math.max(h1,h2)*4.4+10;
+  doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(30);doc.text(T(`Objet : fourniture et pose ${S.boards.length>1?'des tableaux électriques':'du tableau électrique'} · ${S.name||''}`),M,y);y+=4;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90);doc.text(T(`Installation conforme NF C 15-100 · ${S.boards.map(b=>`${b.name} : ${b.rows} rangée(s) de ${b.mpr} modules`).join(' · ')}`),M,y+4);y+=10;
+  const cols=[['Désignation',M],['Qté',M+112],['PU HT',M+138],['Total HT',PW-M]];
+  const head=()=>{need(10);doc.setFillColor(16,19,26);doc.rect(M,y,PW-2*M,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255);doc.text('Désignation',M+2,y+5);doc.text('Qté',M+120,y+5,{align:'right'});doc.text('PU HT',M+150,y+5,{align:'right'});doc.text('Total HT',PW-M-2,y+5,{align:'right'});y+=9};
+  let g0=null;head();
+  x.lines.forEach(l=>{if(l.g!==g0){need(8);doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(16,19,26);doc.text(T(l.g),M+2,y+4);y+=6;g0=l.g}
+    const nl=doc.splitTextToSize(T(l.name),100);need(nl.length*4.2+2);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(30);
+    doc.text(nl,M+2,y+3.5);doc.text(T(`${String(l.q).replace('.',',')} ${l.u}`),M+120,y+3.5,{align:'right'});doc.text(T(eur(l.pu)),M+150,y+3.5,{align:'right'});doc.text(T(eur(l.q*l.pu)),PW-M-2,y+3.5,{align:'right'});
+    y+=nl.length*4.2+1.5;doc.setDrawColor(230);doc.line(M,y,PW-M,y);y+=1});
+  need(30);y+=4;const tot=(lab,v,b)=>{doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(b?12:10);doc.setTextColor(30);doc.text(T(lab),M+120,y+4,{align:'right'});doc.text(T(eur(v)),PW-M-2,y+4,{align:'right'});y+=b?8:6};
+  tot('Total HT',x.ht);tot(`TVA ${String(d.tva).replace('.',',')} %`,x.tva);doc.setDrawColor(16,19,26);doc.line(M+90,y,PW-M,y);y+=2;tot('Total TTC',x.ttc,true);
+  y+=6;need(30);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(110);
+  doc.text(doc.splitTextToSize(T('Devis estimatif établi à partir de prix publics indicatifs ; non contractuel tant qu’il n’est pas validé après visite. Hors mise à la terre, gaine technique, saignées, rebouchage et travaux annexes, sauf mention contraire. Bon pour accord (date, signature, « bon pour accord ») :'),PW-2*M),M,y);
+  const n=doc.getNumberOfPages();for(let k=1;k<=n;k++){doc.setPage(k);doc.setFontSize(7.5);doc.setTextColor(150);doc.text(T(`Devis ${num} · page ${k}/${n}`),PW-M,290,{align:'right'})}
+  await saveBlob(doc.output('blob'),'devis-'+slug(S.name)+'.pdf');
+}
+
 /* PDF : dessin de chaque tableau + circuits + contrôle + matériel */
-function boardSVGFor(b){
-  const keep=[S.cur,SEL,FLOW,TRIP];S.cur=b.id;SEL=null;FLOW=false;TRIP=new Set();renderBoard();
+function boardSVGFor(b,onlyErr){
+  const keep=[S.cur,SEL,FLOW,TRIP];S.cur=b.id;SEL=null;FLOW=false;TRIP=new Set();ONLYERR=!!onlyErr;renderBoard();ONLYERR=false;
   let svg=$('#bsvg').outerHTML;[S.cur,SEL,FLOW,TRIP]=keep;renderBoard();
   const root=document.documentElement,prev=root.getAttribute('data-theme');root.setAttribute('data-theme','light');
   const cs=getComputedStyle(root);svg=svg.replace(/var\(--([\w-]+)\)/g,(m,n)=>(cs.getPropertyValue('--'+n).trim()||'#000').replace(/"/g,"'"));
@@ -1064,10 +1146,11 @@ function boardSVGFor(b){
   return {svg:svg.replace('<svg ',`<svg xmlns="http://www.w3.org/2000/svg" width="${Wd}" height="${Hd}" `).replace(/style="max-width:[^"]*"/,''),w:Wd,h:Hd};
 }
 function svgToPNG(o){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{const k=1.6,c=document.createElement('canvas');c.width=o.w*k;c.height=o.h*k;const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',0.82))};img.onerror=rej;img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(o.svg)})}
-async function makePDF(){
+async function makePDF(opts={}){
+  const ADV=opts.advice!==false;
   if(!window.jspdf){toast('Le module PDF n’a pas pu se charger. Vérifie ta connexion puis réessaie.');return}
   toast('Préparation du PDF…');
-  const T=t=>String(t??'').replace(/[  ]/g,' ').replace(/→/g,'->').replace(/←/g,'<-').replace(/≤/g,'<=').replace(/≈/g,'~').replace(/×/g,'x').replace(/[^\x00-\xFF€…’‘“”«»·–—]/g,'').trim();
+  const T=t=>String(t??'').replace(/[  ]/g,' ').replace(/→/g,'->').replace(/←/g,'<-').replace(/≤/g,'<=').replace(/≈/g,'~').replace(/×/g,'x').replace(/[^\x00-\xFF€…’‘“”«»·–—œŒ]/g,'').trim();
   const {jsPDF}=window.jspdf, doc=new jsPDF({unit:'mm',format:'a4'}), PW=210, M=15, CW=PW-2*M;let y=M;
   const need=h=>{if(y+h>282){doc.addPage();y=M}};
   const txt=(t,{size=10,bold=false,color=[30,32,36],gap=1.5,indent=0}={})=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);const lines=doc.splitTextToSize(T(t),CW-indent);const lh=size*0.42;need(lines.length*lh);doc.text(lines,M+indent,y+lh*0.8);y+=lines.length*lh+gap};
@@ -1080,7 +1163,7 @@ async function makePDF(){
   const bg=budget();txt(`Puissance appelée estimée : ${kw(demand(S))} · Budget matériel indicatif : ${eur(bg.tot)}${bg.cab?` + câbles ${eur(bg.cab)}`:''}`,{size:9.5,gap:4});
   for(const b of S.boards){
     need(90);rule();txt(b.name+(b.etage?' · '+b.etage:''),{size:14,bold:true,gap:2});
-    try{const o=boardSVGFor(b),png=await svgToPNG(o);let iw=CW,ih=CW*o.h/o.w;if(ih>200){ih=200;iw=ih*o.w/o.h}need(ih+2);doc.addImage(png,'JPEG',M+(CW-iw)/2,y,iw,ih);y+=ih+4}catch(err){txt('(dessin indisponible)',{size:9,color:[150,150,150]})}
+    try{const o=boardSVGFor(b,!ADV),png=await svgToPNG(o);let iw=CW,ih=CW*o.h/o.w;if(ih>200){ih=200;iw=ih*o.w/o.h}need(ih+2);doc.addImage(png,'JPEG',M+(CW-iw)/2,y,iw,ih);y+=ih+4}catch(err){txt('(dessin indisponible)',{size:9,color:[150,150,150]})}
     const fm=feedMap(b),ids=sortedIds(b);
     const cols=[['Repère',52],['Circuit',38],['Lieu',28],['Protection',24],['Différentiel',22],['Charge',16]];
     need(22);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(90);let x=M;cols.forEach(([h,cw])=>{doc.text(h,x,y+4);x+=cw});y+=6;doc.setDrawColor(220);doc.line(M,y,PW-M,y);y+=1;
@@ -1095,9 +1178,12 @@ async function makePDF(){
     y+=3;
   }
   if((S.rooms||[]).length){rule();txt('Pièces du logement',{size:14,bold:true,gap:2});(S.rooms||[]).forEach(r=>{const q=roomReq(r);txt(`${r.name} (${ROOMT[r.type]?ROOMT[r.type].n:''}${r.surf?', '+r.surf+' m²':''}) : ${r.socles} socle(s) sur ${q.socles} minimum · ${r.pts} point(s) d’éclairage`,{size:9.5,gap:0.8,color:(+r.socles>=q.socles&&+r.pts>=q.pts)?[30,32,36]:[196,50,28]})});y+=3}
+  rule();txt('Mise à la terre (à réaliser et vérifier sur place)',{size:14,bold:true,gap:2});
+  TERRE.forEach(t=>txt('• '+t,{size:9.5,gap:0.8}));y+=3;
   rule();txt('Contrôle NF C 15-100',{size:14,bold:true,gap:2});
-  if(!ISSUES.length)txt('Aucun problème détecté.',{size:10});
-  const rk={err:0,warn:1,info:2};[...ISSUES].sort((a,b)=>rk[a.lvl]-rk[b.lvl]).forEach(i=>{txt(`${{err:'À CORRIGER',warn:'CONSEIL',info:'INFO'}[i.lvl]} · ${i.msg}`,{size:9.5,bold:true,color:i.lvl==='err'?[196,50,28]:i.lvl==='warn'?[176,106,0]:[36,99,196],gap:0.5});if(i.why)txt(i.why,{size:8.5,color:[100,100,100],gap:2.5,indent:3})});
+  if(!ADV){if(!e.length)txt('Toutes les règles vérifiées par l’outil sont respectées.',{size:10});else e.forEach(i=>txt('À corriger · '+i.msg,{size:9.5,bold:true,color:[196,50,28],gap:1}))}
+  if(ADV&&!ISSUES.length)txt('Aucun problème détecté.',{size:10});
+  const rk={err:0,warn:1,info:2};if(ADV)[...ISSUES].sort((a,b)=>rk[a.lvl]-rk[b.lvl]).forEach(i=>{txt(`${{err:'À CORRIGER',warn:'CONSEIL',info:'INFO'}[i.lvl]} · ${i.msg}`,{size:9.5,bold:true,color:i.lvl==='err'?[196,50,28]:i.lvl==='warn'?[176,106,0]:[36,99,196],gap:0.5});if(i.why)txt(i.why,{size:8.5,color:[100,100,100],gap:2.5,indent:3})});
   rule();txt('Matériel (prix indicatifs TTC)',{size:14,bold:true,gap:2});
   const {list}=needs();list.forEach(e=>{const p=priceOf(S,e.k);txt(`${e.n} × ${e.name} — ${eur(p)} → ${eur(p*e.n)}`,{size:9.5,gap:0.8})});
   txt(`Total indicatif : ${eur(bg.tot)}`,{size:11,bold:true,gap:4});
