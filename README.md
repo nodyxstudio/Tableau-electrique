@@ -7,12 +7,12 @@
 </p>
 
 <p align="center">
-  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><b>▶ Ouvrir Chouette Tableau</b></a>
+  <a href="https://nodyxstudio.github.io/chouette-tableau/"><b>▶ Ouvrir Chouette Tableau</b></a>
   · gratuit · sans compte · rien à installer
 </p>
 
 <p align="center">
-  <a href="https://nodyxstudio.github.io/Tableau-electrique/"><img src="docs/apercu.png" alt="Un tableau électrique dessiné dans Chouette Tableau, avec le contrôle NF C 15-100" width="900"></a>
+  <a href="https://nodyxstudio.github.io/chouette-tableau/"><img src="docs/apercu.png" alt="Un tableau électrique dessiné dans Chouette Tableau, avec le contrôle NF C 15-100" width="900"></a>
 </p>
 
 ---
@@ -56,7 +56,7 @@ Tu glisses un four, une clim ou des prises sur une rangée : le bon disjoncteur 
 
 ## Utiliser
 
-**En ligne :** https://nodyxstudio.github.io/Tableau-electrique/
+**En ligne :** https://nodyxstudio.github.io/chouette-tableau/
 
 Aucune installation et aucun compte. Chaque personne travaille dans son navigateur. Pour garder un tableau, **Enregistrer / ouvrir → Enregistrer sur mon ordinateur** crée un fichier `.tableau.json`, qu’on rouvre plus tard avec **Ouvrir un fichier**. **PDF** exporte le schéma, les circuits, le contrôle et le matériel. Rien n’est envoyé sur un serveur.
 
