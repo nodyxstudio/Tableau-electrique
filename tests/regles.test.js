@@ -44,8 +44,9 @@ test('éclairage : 8 points lumineux maximum', () => {
   assert.ok(has(projet([disj('eclairage', { n: 9, label: 'É' })]).P, /9 points lumineux/));
 });
 
-test('prises : 5 socles en 1,5 mm², 12 en 2,5 mm²', () => {
-  assert.ok(has(projet([disj('prises', { n: 6, label: 'P', c: { cal: 16, sec: 1.5 } })]).P, /maximum 5/));
+test('prises : 8 socles en 1,5 mm², 12 en 2,5 mm²', () => {
+  assert.ok(!has(projet([disj('prises', { n: 8, label: 'P', c: { cal: 16, sec: 1.5 } })]).P, /socles/));
+  assert.ok(has(projet([disj('prises', { n: 9, label: 'P', c: { cal: 16, sec: 1.5 } })]).P, /maximum 8/));
   assert.ok(!has(projet([disj('prises', { n: 12, label: 'P' })]).P, /socles/));
   assert.ok(has(projet([disj('prises', { n: 13, label: 'P' })]).P, /maximum 12/));
 });
@@ -203,7 +204,7 @@ test('un four de 3 500 W sur un disjoncteur 10 A va sauter, avec correction', ()
   const d = disj('four', { label: 'Four', p: 3500 }); d.c.cal = 10;
   const { P } = projet([d]);
   const e = R.analyse(P).find(i => i.item === d.id && /va sauter/.test(i.msg));
-  assert.equal(e.lvl, 'err');
+  assert.equal(e.lvl, 'warn'); // la charge ne bloque pas le Consuel
   R.applyFix(P, e.fix[0].op);
   assert.equal(d.c.cal, 16); assert.equal(d.c.sec, 2.5);
   assert.ok(!R.analyse(P).some(i => i.item === d.id && i.lvl === 'err'));
@@ -227,4 +228,16 @@ test('exemples générés : aucun conseil inutile', () => {
     const P = R.generate({ ...R.DEFAULT_HOME, ...h });
     assert.deepEqual(R.analyse(P).filter(i => i.lvl !== 'info').map(i => i.msg), [], JSON.stringify(h));
   }
+});
+
+test('circuits obligatoires : cuisson 32 A, 3 spécialisés, communication', () => {
+  const P = R.generate(R.DEFAULT_HOME);
+  const B = R.principal(P);
+  const drop = k => { B.items = B.items.filter(i => !(i.t === 'disj' && k.includes(i.c.k))); };
+  drop(['plaque']);
+  assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /circuit cuisson 32 A/.test(i.msg)));
+  drop(['four', 'lv', 'congel']);
+  assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /il en faut au moins 3/.test(i.msg)));
+  drop(['com']);
+  assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /tableau de communication/.test(i.msg)));
 });

@@ -197,6 +197,11 @@ ul.rules li{margin-bottom:5px}
 #bsvg .mod.dead{opacity:.5}
 .cheer .big{animation:cheer .9s ease-out 2}
 @keyframes cheer{0%{transform:scale(1)}40%{transform:scale(1.25);box-shadow:0 0 0 10px var(--ok-soft)}100%{transform:scale(1)}}
+.mobwrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mobwrap .mobnote{margin-top:12px}
+.mobnote{padding:14px 16px;display:grid;gap:8px;border-color:var(--accent);background:var(--accent-soft)}
+.mobnote b{font-family:var(--f-display);font-size:19px}
+.mobnote p{margin:0;font-size:14px}
 .intro{padding:14px 16px;display:grid;gap:10px;border-color:var(--accent)}
 .intro h2{font-family:var(--f-display);font-size:22px;margin:0}
 .intro ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px}
@@ -222,6 +227,7 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
 @media (max-width:1240px){.app{grid-template-columns:230px minmax(0,1fr)}.panel{grid-column:1/-1;position:static;max-height:none}}
 @media (max-width:760px){
   .app{grid-template-columns:minmax(0,1fr)}
+  .stage{order:-1}
   .palette{position:static;max-height:none}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
   .grid2,.checks{grid-template-columns:minmax(0,1fr)}
@@ -246,6 +252,7 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
   </div>
 </header>
 
+<div class="mobwrap"><div class="card mobnote" id="mobnote" hidden></div></div>
 <main class="app">
   <aside class="card palette" id="palette" aria-label="Matériel à glisser"></aside>
   <section class="stage">
@@ -666,9 +673,11 @@ function memoHTML(){
   <li>Tous les circuits sont protégés par un interrupteur différentiel 30 mA.</li>
   <li>Nombre minimum de différentiels : 2 jusqu’à 35 m², 3 de 35 à 100 m², 4 au-delà, dont au moins un type A.</li>
   <li>8 circuits maximum par interrupteur différentiel.</li>
+  <li>Circuits obligatoires : un circuit cuisson 32 A (6 mm²), au moins 3 circuits spécialisés 20 A (2,5 mm²) pour le gros électroménager, et le circuit du tableau de communication.</li>
+  <li>La puissance de tes appareils n’est pas contrôlée par le Consuel : l’outil la calcule pour te prévenir si un disjoncteur risque de sauter, sans bloquer.</li>
   <li>Plaque de cuisson et lave-linge derrière un type A (ou F). Recharge VE : un 30 mA type A ou F par point de charge.</li>
   <li>Le calibre du disjoncteur ne dépasse jamais ce que le câble supporte : 1,5 mm² → 16 A · 2,5 → 20 A · 4 → 25 A · 6 → 32 A · 10 → 50 A · 16 → 63 A.</li>
-  <li>Éclairage : 8 points max · Prises : 5 socles (1,5 mm²) ou 12 socles (2,5 mm²) · Cuisine : circuit dédié de 6 socles.</li>
+  <li>Éclairage : 8 points max · Prises : 8 socles (1,5 mm² / 16 A) ou 12 socles (2,5 mm² / 20 A) · Cuisine : circuit dédié de 6 socles.</li>
   <li>Réserve d’au moins 20 % dans chaque tableau.</li>
   <li>Chaque circuit est repéré (étiquette).</li>
   <li>Tableau divisionnaire : départ protégé depuis le principal et interrupteur de tête.</li>
@@ -1117,6 +1126,15 @@ function buildDatalists(){
   document.body.appendChild(box);
 }
 buildDatalists();
+function renderMobileNote(){
+  let seen=false;try{seen=sessionStorage.getItem('tm-mobile')==='1'}catch(e){}
+  const small=window.matchMedia('(max-width: 900px)').matches, touch=window.matchMedia('(pointer: coarse)').matches;
+  const el=$('#mobnote');if(seen||!(small||touch)){el.hidden=true;return}
+  el.hidden=false;
+  el.innerHTML=`<b>Plus confortable sur ordinateur</b><p>Chouette Tableau est fait pour un écran d’ordinateur : on y voit tout le tableau, et le glisser-déposer est bien plus précis à la souris. Tu peux quand même continuer ici.</p><div class="row-btns" style="margin:0"><button class="btn small" type="button" id="mobOk">Continuer sur téléphone</button></div>`;
+  $('#mobOk').onclick=()=>{try{sessionStorage.setItem('tm-mobile','1')}catch(e){}el.hidden=true};
+}
+renderMobileNote();
 renderIntro();
 renderPalette();render();
 </script>

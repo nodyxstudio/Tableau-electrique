@@ -16,7 +16,7 @@ const ARRMAX={10:60,16:90,25:90}; // câble AGCP → tableau : courant maximum d
 function arrSec(P){return P.arr&&P.arr!=='auto'?+P.arr:(P.kva>12?16:10)}
 const CIRC={
   eclairage:{n:'Éclairage',ic:'💡',sec:1.5,cal:16,cnt:'points lumineux',max:{1.5:8,2.5:8},p:500,ks:.7,lim:'8 points lumineux max'},
-  prises:{n:'Prises 16 A',ic:'🔌',sec:2.5,cal:20,cnt:'socles',max:{1.5:5,2.5:12},p:2500,ks:.3,lim:'5 socles (1,5 mm²/16 A) · 12 socles (2,5 mm²/20 A)'},
+  prises:{n:'Prises 16 A',ic:'🔌',sec:2.5,cal:20,cnt:'socles',max:{1.5:8,2.5:12},p:2500,ks:.3,lim:'8 socles (1,5 mm²/16 A) · 12 socles (2,5 mm²/20 A)'},
   cuisine:{n:'Prises plan de travail',ic:'🥣',sec:2.5,cal:20,cnt:'socles',max:{2.5:6,4:6,6:6},p:3000,ks:.4,lim:'6 socles max, circuit dédié à la cuisine'},
   plaque:{n:'Plaque de cuisson',ic:'🍳',sec:6,cal:32,p:7200,ks:.6,A:true,lim:'1 appareil · différentiel type A'},
   four:{n:'Four',ic:'🥖',sec:2.5,cal:20,p:3000,ks:.6,lim:'1 appareil'},
@@ -143,6 +143,10 @@ function generate(h){
   if(h.volets)add(mkCirc('volets',{label:'Volets'}));
   if(h.ext)add(mkCirc('ext',{label:'Extérieur'}));
   add(mkCirc('com',{label:'Coffret com.'}));
+  // circuits imposés par la norme même sans l'appareil : cuisson 32 A et 3 circuits spécialisés
+  if(!h.plaque)add(mkCirc('plaque',{label:'Cuisson 32 A (en attente)',p:0}));
+  const nSpe=B.items.filter(i=>i.t==='disj'&&['four','ll','lv','sl','congel','frigo','mo'].includes(i.c.k)).length;
+  for(let i=nSpe;i<3;i++)add(mkCirc('autre',{label:'Circuit spécialisé en attente',p:0}));
   B.items.forEach(i=>{if(i.t==='disj'&&!i.c.etage)i.c.etage=['ext','portail','piscine','spa','irve','prv'].includes(i.c.k)?'Extérieur':'RDC'});
   if(h.ce&&P.tarif==='hc')add(mkItem('cont'));
   if(h.foudre)add(mkItem('para'));
@@ -179,7 +183,7 @@ function recommend(c,P){
   const sp=CIRC[c.k];
   if(sp.ptab){const r=PTABLE.find(r=>r[2]>=(+c.p||0))||PTABLE[PTABLE.length-1];return{cal:r[0],sec:r[1]}}
   if(c.k==='div'){const b=P&&boardOf(P,c.board);const I=b?boardLoad(P,b)/230:0;const r=DIVTABLE.find(r=>r[0]>=I*1.1)||DIVTABLE[2];return{cal:r[0],sec:r[1]}}
-  if(c.k==='prises'&&(+c.n||0)<=5&&c.sec===1.5)return{cal:16,sec:1.5};
+  if(c.k==='prises'&&(+c.n||0)<=8&&c.sec===1.5)return{cal:16,sec:1.5};
   if(c.k==='eclairage')return{cal:c.cal===10?10:16,sec:1.5};
   return{cal:sp.cal,sec:sp.sec};
 }
@@ -225,7 +229,7 @@ function optimise(P,b){
   const pick=(c,l)=>{let best=null;for(const bn of c){if(bn.list.length>=8||bn.load+l>63*230)continue;if(!best||bn.load<best.load)best=bn}return best};
   const place=(i,pref)=>{let bn=pick(pref,L(i))||pick(general,L(i));if(!bn){bn=newBin('AC',40);ACbins.push(bn);general.push(bn)}put(bn,i)};
   recA.forEach(i=>place(i,Abins.length?Abins:general));
-  const rr=(list,off)=>list.forEach((i,k)=>{const pool=ACbins.length?ACbins:general;place(i,[pool[(k+off)%pool.length]])});
+  const rr=(list,off)=>list.forEach((i,k)=>{const pool=ACbins.length>=2?ACbins:general;place(i,[pool[(k+off)%pool.length]])});
   const byEt=(a,c)=>String(a.c.etage||'').localeCompare(String(c.c.etage||''));
   rr(rest.filter(i=>i.c.k==='eclairage').sort(byEt),0);
   rr(rest.filter(i=>i.c.k==='prises').sort(byEt),1);
@@ -294,12 +298,12 @@ function analyse(P){
       if(c.k!=='div'&&+c.p>0){
         const cook=['plaque','cuisiniere'].includes(c.k), I=(+c.p)*(cook?0.8:1)/230, W_=Math.round(+c.p*(cook?0.8:1)).toLocaleString('fr-FR');
         const up=x=>{const cal=CALS.find(k=>k>=x&&k>=c.cal);if(!cal||c.k==='eclairage'&&cal>16)return [];const sec=Math.max(c.sec,SECS.find(z=>MAXCAL[z]>=cal)||16);return[{label:`Passer en ${cal} A · ${fmt(sec)} mm²`,op:{k:'set',item:it.id,vals:{cal,sec}}}]};
-        if(I>c.cal)add('err',`${nm} : ${W_} W demandent ${I.toFixed(1).replace('.',',')} A, plus que le disjoncteur ${c.cal} A. Il va sauter.`,b,it,`Courant = puissance ÷ 230 V, soit ${W_} ÷ 230 = ${I.toFixed(1).replace('.',',')} A. Un disjoncteur coupe quand le courant dépasse son calibre. Il faut un calibre plus fort et la section de câble qui va avec${c.k==='eclairage'?' (pour l’éclairage, 16 A maximum : partage plutôt en deux circuits)':''}.`,up(I));
+        if(I>c.cal)add('warn',`${nm} : ${W_} W demandent ${I.toFixed(1).replace('.',',')} A, plus que le disjoncteur ${c.cal} A. Il va sauter.`,b,it,`Courant = puissance ÷ 230 V, soit ${W_} ÷ 230 = ${I.toFixed(1).replace('.',',')} A. Un disjoncteur coupe quand le courant dépasse son calibre. Le Consuel ne mesure pas la puissance de tes appareils (ce point ne bloque pas l’attestation), mais à l’usage ça disjonctera. Il faut un calibre plus fort et la section de câble qui va avec${c.k==='eclairage'?' (pour l’éclairage, 16 A maximum : partage plutôt en deux circuits)':''}.`,up(I));
         else if(I>c.cal*0.85&&!['prises','cuisine'].includes(c.k))add('warn',`${nm} : ${I.toFixed(1).replace('.',',')} A pour un disjoncteur ${c.cal} A (${Math.round(I/c.cal*100)} % de sa capacité).`,b,it,'Au-dessus de 85 %, il reste peu de marge : un démarrage de moteur ou un appareil de plus peut le faire sauter. Pas bloquant pour le Consuel.',up(I*1.18));
       }
       if(c.k==='div'){const db=boardOf(P,c.board);
         if(!db)add('err',`${nm} n’alimente aucun tableau.`,b,it,'Choisis le tableau divisionnaire alimenté dans les réglages du disjoncteur.');
-        else{const I=boardLoad(P,db)/230;const r=DIVTABLE.find(x=>x[0]>=I*1.1);if(I>c.cal)add('err',`${nm} : le tableau « ${db.name} » tire environ ${Math.round(I)} A pour un départ ${c.cal} A. Il va sauter.`,b,it,'La charge estimée du divisionnaire (ses circuits, avec leurs coefficients d’utilisation) dépasse le calibre du départ. Augmente le calibre et la section : 6 mm²/32 A, 10 mm²/40 A, 16 mm²/63 A.',r?[{label:`Passer en ${r[0]} A · ${fmt(r[1])} mm²`,op:{k:'set',item:it.id,vals:{cal:r[0],sec:r[1]}}}]:[])}}
+        else{const I=boardLoad(P,db)/230;const r=DIVTABLE.find(x=>x[0]>=I*1.1);if(I>c.cal)add('warn',`${nm} : le tableau « ${db.name} » tire environ ${Math.round(I)} A pour un départ ${c.cal} A. Il va sauter.`,b,it,'La charge estimée du divisionnaire (ses circuits, avec leurs coefficients d’utilisation) dépasse le calibre du départ. Augmente le calibre et la section : 6 mm²/32 A, 10 mm²/40 A, 16 mm²/63 A.',r?[{label:`Passer en ${r[0]} A · ${fmt(r[1])} mm²`,op:{k:'set',item:it.id,vals:{cal:r[0],sec:r[1]}}}]:[])}}
       if(!id){
         if(c.k==='div'){const db=boardOf(P,c.board);if(db&&!db.items.some(i=>i.t==='id'))add('err',`${nm} : le tableau « ${db.name} » n’a aucun différentiel 30 mA.`,b,it,'Si le départ n’est pas derrière un 30 mA, le tableau divisionnaire doit avoir ses propres interrupteurs différentiels.')}
         else add('err',`${nm} n’est protégé par aucun différentiel 30 mA.`,b,it,'Tous les circuits d’un logement passent par un interrupteur différentiel 30 mA. Place le disjoncteur à droite d’un différentiel (peigne) ou tire un fil vers un différentiel.');
@@ -322,7 +326,7 @@ function analyse(P){
       if(cs.length>8)add('err',`${nm} protège ${cs.length} circuits (8 maximum).`,b,d,'Un interrupteur différentiel protège au plus 8 circuits. Ajoute un différentiel.');
       if(!cs.length)add('warn',`${nm} ne protège aucun circuit.`,b,d,'Place des disjoncteurs à sa droite sur la même rangée, ou câble-les vers lui.');
       const I=cs.reduce((a,i)=>a+loadOf(P,i),0)/230;
-      if(I>d.cal)add(I>d.cal*1.25?'err':'warn',`${nm} : environ ${Math.round(I)} A en charge pour un calibre ${d.cal} A.`,b,d,'Passe en 63 A ou répartis les gros appareils (plaque, chauffage, recharge) sur d’autres différentiels.');
+      if(I>d.cal)add('warn',`${nm} : environ ${Math.round(I)} A en charge pour un calibre ${d.cal} A.`,b,d,'Passe en 63 A ou répartis les gros appareils (plaque, chauffage, recharge) sur d’autres différentiels.');
     });
     const ecl=b.items.filter(i=>i.t==='disj'&&i.c.k==='eclairage');
     const eIds=new Set(ecl.map(i=>fm[i.id].by).filter(Boolean));
@@ -358,10 +362,10 @@ function analyse(P){
   const s=+P.surf||0, req=s<=35?2:s<=100?3:4;
   if(allIds.length<req)add('err',`Pour ${s} m², il faut au moins ${req} interrupteurs différentiels 30 mA (tu en as ${allIds.length}).`,prin,null,'NF C 15-100 : jusqu’à 35 m² : 2 · de 35 à 100 m² : 3 · plus de 100 m² : 4, dont au moins un type A.');
   const allC=P.boards.flatMap(b=>b.items.filter(i=>i.t==='disj').map(i=>i.c));
-  if(!allC.some(c=>(c.k==='plaque'||c.k==='cuisiniere')&&c.cal>=32))add('warn','Pas de circuit cuisson 32 A.',prin,null,'La NF C 15-100 prévoit un circuit spécialisé 32 A en 6 mm² pour la plaque ou la cuisinière, même si tu cuisines au gaz aujourd’hui : il sert au futur occupant.');
-  const spe=allC.filter(c=>['four','ll','lv','sl','congel','frigo','ce','thermo','mo'].includes(c.k)).length;
-  if(spe<3)add('info',`${spe} circuit${spe>1?'s':''} spécialisé${spe>1?'s':''} 16/20 A (lave-linge, lave-vaisselle, four…).`,prin,null,'La norme demande plusieurs circuits spécialisés pour le gros électroménager (au moins 3 selon les sources, plus selon la taille du logement). Chaque gros appareil a son propre circuit.');
-  if(!allC.some(c=>c.k==='com'))add('warn','Pas de circuit pour le tableau de communication.',prin,null,'Le coffret de communication (box, réseau, TV) est alimenté par un circuit dédié. Le Consuel vérifie sa présence.');
+  if(!allC.some(c=>(c.k==='plaque'||c.k==='cuisiniere')&&c.cal>=32))add('err','Il manque le circuit cuisson 32 A.',prin,null,'NF C 15-100 : tout logement a un circuit spécialisé 32 A en 6 mm² pour la plaque ou la cuisinière, même si tu cuisines au gaz aujourd’hui : il sert au futur occupant. Glisse « Plaque de cuisson » ou « Cuisinière » dans le tableau.');
+  const spe=allC.filter(c=>['four','ll','lv','sl','congel','frigo','mo'].includes(c.k)||(c.k==='autre'&&c.cal>=16&&c.sec>=2.5)).length;
+  if(spe<3)add('err',`${spe} circuit${spe>1?'s':''} spécialisé${spe>1?'s':''} pour le gros électroménager : il en faut au moins 3.`,prin,null,'NF C 15-100 : en plus du circuit cuisson, un logement a au moins 3 circuits spécialisés 2,5 mm² / 20 A, un par gros appareil (lave-linge, lave-vaisselle, four, sèche-linge, congélateur…). Même sans l’appareil aujourd’hui, le circuit doit être prévu : un « Autre circuit » 20 A en 2,5 mm² compte comme circuit en attente.');
+  if(!allC.some(c=>c.k==='com'))add('err','Il manque le circuit du tableau de communication.',prin,null,'NF C 15-100 : le tableau de communication (box, réseau, TV) dans la gaine technique est alimenté par un circuit dédié. Le Consuel vérifie sa présence. Glisse « Tableau de communication » dans le tableau.');
   if(!allIds.some(d=>d.type!=='AC'))add('err','Il faut au moins un différentiel type A (ou F).',prin,null,'Le type A protège la plaque de cuisson et le lave-linge.');
   if(P.foudre&&!prin.items.some(i=>i.t==='para'))add('err','Parafoudre obligatoire dans ta zone (ou bâtiment avec paratonnerre).',prin,null,'Le parafoudre se place en tête du tableau principal, avec son dispositif de déconnexion.');
   const pf=demand(P);
