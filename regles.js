@@ -76,6 +76,22 @@ const TYWHY={
   piscine:'Les pompes à vitesse variable créent des fuites que le type AC voit mal : type A conseillé.',
   spa:'Pompes et électronique de chauffe : type A conseillé, suis la notice.',
   relevage:'Moteur de pompe, souvent à variateur : type A conseillé.'};
+/* Équipement minimum par pièce (NF C 15-100, logement) */
+const ROOMT={
+  sejour:{n:'Séjour',why:'1 socle par tranche de 4 m², 5 au minimum ; au-delà de 28 m², 7 au minimum. Un point d’éclairage au plafond.'},
+  chambre:{n:'Chambre',why:'3 socles au minimum et un point d’éclairage.'},
+  cuisine:{n:'Cuisine',why:'6 socles au minimum dont 4 au-dessus du plan de travail (3 si la cuisine fait 4 m² ou moins), hors circuits spécialisés. Un point d’éclairage.'},
+  sdb:{n:'Salle de bain / d’eau',why:'1 socle au minimum, hors des volumes 0 à 2, et un point d’éclairage.'},
+  wc:{n:'WC',why:'Pas de socle exigé, un point d’éclairage.'},
+  entree:{n:'Entrée',why:'1 socle et un point d’éclairage.'},
+  couloir:{n:'Couloir / dégagement',why:'Un point d’éclairage ; 1 socle si la pièce fait plus de 4 m².'},
+  autre:{n:'Autre pièce (bureau, buanderie…)',why:'Un point d’éclairage ; 1 socle si la pièce fait plus de 4 m².'}
+};
+function roomReq(r){const s=+r.surf||0;
+  const so={sejour:s>28?7:Math.max(5,Math.ceil(s/4)),chambre:3,cuisine:s>4||!s?6:3,sdb:1,wc:0,entree:1,couloir:s>4?1:0,autre:s>4?1:0}[r.type]??0;
+  return{socles:so,pts:1};}
+function mkRoom(type,name,surf,o={}){const r={id:uid(),type,name,surf,etage:o.etage||'',socles:0,pts:1};r.socles=o.socles??roomReq(r).socles;r.pts=o.pts??1;return r}
+
 /* Rangement de la palette par pièce / usage */
 const GROUPS=[
   ['Pièces : lumière et prises',['eclairage','prises','volets','com']],
@@ -120,6 +136,11 @@ function generate(h){
   const P={v:1,arr:'auto',name:h.name||'Mon logement',surf:+h.surf||90,tarif:h.tarif||'base',kva:9,foudre:!!h.foudre,brand:h.brand||'schneider',stock:{},boards:[],cur:null,home:clone(h)};
   const B=newBoard('Tableau principal','principal');P.boards.push(B);P.cur=B.id;
   const ch=Math.max(0,+h.ch||0), sdb=Math.max(0,+h.sdb||0), add=it=>B.items.push(it);
+  const S0=+h.surf||90, sej=Math.round(Math.max(15,Math.min(60,S0*0.32))), upR=+h.niveaux===2;
+  P.rooms=[mkRoom('sejour','Séjour',sej,{etage:'RDC'}),mkRoom('cuisine','Cuisine',S0>40?10:6,{etage:'RDC'}),mkRoom('entree','Entrée',5,{etage:'RDC'}),mkRoom('wc','WC',2,{etage:'RDC'}),mkRoom('couloir','Couloir',S0>60?6:4,{etage:upR?'Étage 1':'RDC'})];
+  for(let i=1;i<=ch;i++)P.rooms.push(mkRoom('chambre',`Chambre ${i}`,11,{etage:upR?'Étage 1':'RDC'}));
+  for(let i=1;i<=sdb;i++)P.rooms.push(mkRoom('sdb',sdb>1?`Salle de bain ${i}`:'Salle de bain',5,{etage:upR?'Étage 1':'RDC',pts:2}));
+  const rs=t=>P.rooms.filter(r=>r.type===t);
   const lum=[['séjour',3],['cuisine',2],['entrée',2],['WC',1]];
   for(let i=1;i<=ch;i++)lum.push([`ch.${i}`,1]);
   for(let i=1;i<=sdb;i++)lum.push([sdb>1?`SdB ${i}`:'SdB',2]);
@@ -127,11 +148,11 @@ function generate(h){
   const up=+h.niveaux===2, F=r=>r==='ext.'?'Extérieur':up&&/^(ch\.|SdB|couloir)/.test(r)?'Étage 1':'RDC';
   const byFloor=(list,max,mk)=>[...new Set(list.map(x=>F(x[0])))].forEach(f=>pack(list.filter(x=>F(x[0])===f),max).forEach(g=>{const it=mk(g);it.c.etage=f;add(it)}));
   byFloor(lum,7,g=>mkCirc('eclairage',{label:'Écl. '+g.rooms.join(', '),n:g.n,p:Math.max(300,g.n*80)}));
-  const pc=[['séjour',5+Math.floor((+h.surf||90)/40)],['entrée',1]];
+  const pc=[['séjour',rs('sejour')[0].socles],['entrée',1]];
   for(let i=1;i<=ch;i++)pc.push([`ch.${i}`,3]);
   for(let i=1;i<=sdb;i++)pc.push([sdb>1?`SdB ${i}`:'SdB',1]);
-  pc.push(['couloir',1]);
-  byFloor(pc,10,g=>mkCirc('prises',{label:'PC '+g.rooms.join(', '),n:g.n}));
+  if(rs('couloir')[0].socles)pc.push(['couloir',rs('couloir')[0].socles]);
+  byFloor(pc,12,g=>mkCirc('prises',{label:'PC '+g.rooms.join(', '),n:g.n}));
   add(mkCirc('cuisine',{label:'PC plan de travail',n:6,room:'cuisine'}));
   [['chaudiere','Chaudière gaz'],['plaque','Plaque'],['four','Four'],['ll','Lave-linge'],['lv','Lave-vaisselle'],['sl','Sèche-linge'],['frigo','Réfrigérateur'],['congel','Congélateur'],['ce','Chauffe-eau']].forEach(([k,l])=>{if(h[k])add(mkCirc(k,{label:l}))});
   if(+h.chauf>0){const n=Math.ceil(+h.chauf/3500);for(let i=0;i<n;i++)add(mkCirc('chauffage',{label:`Chauffage ${i+1}`,p:Math.round(+h.chauf/n)}))}
@@ -325,12 +346,12 @@ function analyse(P){
       const cs=idCirc[d.id].filter(x=>x.t==='disj'||x.t==='prise');const nm=`${idName(b,d)} (${b.name})`;
       if(cs.length>8)add('err',`${nm} protège ${cs.length} circuits (8 maximum).`,b,d,'Un interrupteur différentiel protège au plus 8 circuits. Ajoute un différentiel.');
       if(!cs.length)add('warn',`${nm} ne protège aucun circuit.`,b,d,'Place des disjoncteurs à sa droite sur la même rangée, ou câble-les vers lui.');
+      const heat=cs.filter(i=>i.t==='disj'&&['chauffage','ce','thermo','seche','plancher'].includes(i.c.k)).reduce((a,i)=>a+(+i.c.p||0),0);
+      if(heat>8000&&d.cal<63)add('err',`${nm} : ${Math.round(heat/100)/10} kW de chauffage et d’eau chaude derrière un ${d.cal} A, il faut un 63 A.`,b,d,'Quand les circuits de chauffage et de chauffe-eau placés sous un même interrupteur différentiel dépassent 8 kVA au total, il doit être de 63 A. Sinon, répartis ces circuits sur plusieurs différentiels.',[{label:'Passer en 63 A',op:{k:'idcal',id:d.id,cal:63}}]);
+      if(d.cal===25&&cs.some(i=>i.t==='disj'&&(['plaque','cuisiniere','chauffage','ce','plancher','irve'].includes(i.c.k))))add('warn',`${nm} : un 25 A est réservé aux petits circuits.`,b,d,'Le différentiel 25 A sert dans les petits logements (35 m² ou moins) aux circuits légers. Pour la cuisson, le chauffage ou l’eau chaude, prends un 40 A.',[{label:'Passer en 40 A',op:{k:'idcal',id:d.id,cal:40}}]);
       const I=cs.reduce((a,i)=>a+loadOf(P,i),0)/230;
       if(I>d.cal)add('warn',`${nm} : environ ${Math.round(I)} A en charge pour un calibre ${d.cal} A.`,b,d,'Passe en 63 A ou répartis les gros appareils (plaque, chauffage, recharge) sur d’autres différentiels.');
     });
-    const ecl=b.items.filter(i=>i.t==='disj'&&i.c.k==='eclairage');
-    const eIds=new Set(ecl.map(i=>fm[i.id].by).filter(Boolean));
-    if(ecl.length>=2&&eIds.size<2)add('warn',`${b.name} : tout l’éclairage est sur le même différentiel.`,b,null,'Répartis l’éclairage sur au moins deux différentiels. Si l’un saute, une partie du logement reste éclairée.');
     const tot=b.rows*b.mpr, freeM=tot-usedMods(b), need=reserveNeed(b);
     if(freeM<need)add('err',`${b.name} : ${freeM} module${freeM>1?'s':''} libre${freeM>1?'s':''} sur ${tot}, il en faut au moins ${need} (réserve de 20 %).`,b,null,`NF C 15-100 : chaque tableau garde une réserve d’au moins 20 % de sa place, arrondie au module supérieur (${tot} × 20 % = ${(tot*0.2).toLocaleString('fr-FR')}, donc ${need} modules). Elle sert aux ajouts futurs sans changer de tableau. Le Consuel la vérifie.`,[{label:'Ajouter une rangée',op:{k:'addrow',board:b.id}}]);
     else{const cap=rowCap(b.mpr);const full=[];for(let r=0;r<b.rows;r++){const u=b.items.filter(i=>i.row===r).reduce((a,i)=>a+W[i.t],0);if(u>cap)full.push(r+1)}
@@ -341,6 +362,7 @@ function analyse(P){
       if(!prin.items.some(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id))add('err',`${b.name} n’est alimenté par aucun départ du tableau principal.`,b,null,'Ajoute un disjoncteur « Départ tableau divisionnaire » dans le tableau principal.');
     }
   }
+  const allC=P.boards.flatMap(b=>b.items.filter(i=>i.t==='disj').map(i=>i.c));
   // câble d'arrivée AGCP → tableau
   const arr=arrSec(P), agcp=P.kva*5;
   if(agcp>ARRMAX[arr])add('err',`Câble d’arrivée ${arr} mm² trop fin pour l’AGCP réglé à ${agcp} A (maximum ${ARRMAX[arr]} A).`,prin,null,'Entre l’AGCP et le tableau : 10 mm² jusqu’à 60 A (12 kVA), 16 mm² au-delà.',[{label:'Passer le câble en 16 mm²',op:{k:'proj',key:'arr',v:16}},{label:`Abonnement 12 kVA (AGCP 60 A)`,op:{k:'proj',key:'kva',v:12}}]);
@@ -359,9 +381,31 @@ function analyse(P){
   });
   const levels=Object.keys(floors).filter(x=>!['Extérieur','Garage','Annexe'].includes(x));
   if(levels.length>=2&&upper>=6&&!P.boards.some(b=>b.kind==='div'))add('info',`${levels.length} niveaux et ${upper} circuits hors rez-de-chaussée : pense à un tableau divisionnaire à l’étage.`,prin,null,'Un tableau à l’étage raccourcit les câbles (moins de chute de tension, moins de cuivre) et simplifie les dépannages. Il est alimenté par un seul câble depuis le tableau principal.');
+  // éclairage et prises : au moins deux différentiels pour tout le logement
+  for(const [k,lab] of [['eclairage','l’éclairage'],['prises','les prises']]){
+    const list=[],ids=new Set();P.boards.forEach(b=>{const fm=feedMap(b);b.items.forEach(i=>{if(i.t==='disj'&&i.c.k===k){list.push(i);const by=fm[i.id].by;ids.add(by?b.id+':'+by:(b.kind==='div'?'div:'+b.id:'none'))}})});
+    if(list.length>=2&&ids.size<2)add('err',`Tout ${lab==='l’éclairage'?'l’éclairage est':'les prises sont'} sur le même différentiel.`.replace('Tout les','Toutes les'),prin,null,`NF C 15-100 : les circuits ${k==='eclairage'?'d’éclairage':'de prises'} du logement sont répartis sur au moins deux interrupteurs différentiels. Si l’un saute, une partie du logement garde ${k==='eclairage'?'la lumière':'du courant'}. « Optimiser tout » fait la répartition.`,[{label:'Optimiser le tableau principal',op:{k:'optimise',board:prin.id}}]);
+  }
+  // pièces : équipement minimum
+  const rooms=P.rooms||[];
+  rooms.forEach(r=>{const q=roomReq(r),t=ROOMT[r.type]||ROOMT.autre,nm=r.name||t.n;
+    if((+r.socles||0)<q.socles)add('err',`${nm} : ${+r.socles||0} socle${(+r.socles||0)>1?'s':''} de prise, il en faut au moins ${q.socles}.`,prin,null,`NF C 15-100, ${t.n.toLowerCase()} : ${t.why} Une prise double compte pour 2 socles.`,[{label:`Mettre ${q.socles} socles`,op:{k:'room',id:r.id,key:'socles',v:q.socles}}]);
+    if((+r.pts||0)<q.pts)add('err',`${nm} : aucun point d’éclairage.`,prin,null,`NF C 15-100, ${t.n.toLowerCase()} : ${t.why}`,[{label:'Ajouter 1 point',op:{k:'room',id:r.id,key:'pts',v:1}}]);
+  });
+  if(rooms.length){
+    const allD=P.boards.flatMap(b=>b.items.filter(i=>i.t==='disj'));
+    const needPC=rooms.filter(r=>r.type!=='cuisine').reduce((a,r)=>a+(+r.socles||0),0), havePC=allD.filter(i=>i.c.k==='prises').reduce((a,i)=>a+(+i.c.n||0),0);
+    if(needPC>havePC)add('err',`Les pièces ont ${needPC} socles de prise, mais les circuits de prises n’en prévoient que ${havePC}.`,prin,null,`Chaque socle des pièces doit être sur un circuit de prises (8 maximum en 1,5 mm², 12 en 2,5 mm²). Il te faut au moins ${Math.ceil(needPC/12)} circuit(s) de prises en 2,5 mm² : ajoute des circuits ou indique le nombre de socles dans les réglages de chaque circuit.`);
+    const needK=rooms.filter(r=>r.type==='cuisine').reduce((a,r)=>a+(+r.socles||0),0), haveK=allD.filter(i=>i.c.k==='cuisine').reduce((a,i)=>a+(+i.c.n||0),0);
+    if(needK>haveK)add('err',`La cuisine a ${needK} socles, mais le circuit « Prises plan de travail » n’en prévoit que ${haveK}.`,prin,null,'Les prises de la cuisine sont sur un circuit dédié 20 A en 2,5 mm², 6 socles au maximum par circuit. Ajoute un circuit « Prises plan de travail » si besoin.');
+    const needL=rooms.reduce((a,r)=>a+(+r.pts||0),0), haveL=allD.filter(i=>i.c.k==='eclairage').reduce((a,i)=>a+(+i.c.n||0),0);
+    if(needL>haveL)add('err',`Les pièces ont ${needL} points d’éclairage, mais les circuits d’éclairage n’en prévoient que ${haveL}.`,prin,null,`Chaque point d’éclairage est sur un circuit d’éclairage (8 points maximum par circuit). Il te faut au moins ${Math.ceil(needL/8)} circuit(s) d’éclairage.`);
+  }
+  // nouveautés 2024 : recommandations
+  if(allC.some(c=>['prises','vmc','piscine'].includes(c.k)))add('info','Détecteur d’arc (DPDA) recommandé.',prin,null,'Depuis 2024, la norme recommande un dispositif de protection contre les arcs (détecteur d’arc) sur les circuits de prises des chambres et des lieux à risque d’incendie, et sur les circuits toujours alimentés (VMC, pompe de piscine). Ce n’est pas obligatoire.');
+  if(prin.items.some(i=>i.t==='para'))add('info','Parafoudre : pense aux équipements éloignés et à la ligne téléphone.',prin,null,'Depuis 2024 : un parafoudre supplémentaire est recommandé pour les équipements à plus de 10 m du tableau (avant : 30 m), et le réseau de communication cuivre doit aussi avoir son parafoudre quand le tableau en a un.');
   const s=+P.surf||0, req=s<=35?2:s<=100?3:4;
   if(allIds.length<req)add('err',`Pour ${s} m², il faut au moins ${req} interrupteurs différentiels 30 mA (tu en as ${allIds.length}).`,prin,null,'NF C 15-100 : jusqu’à 35 m² : 2 · de 35 à 100 m² : 3 · plus de 100 m² : 4, dont au moins un type A.');
-  const allC=P.boards.flatMap(b=>b.items.filter(i=>i.t==='disj').map(i=>i.c));
   if(!allC.some(c=>(c.k==='plaque'||c.k==='cuisiniere')&&c.cal>=32))add('err','Il manque le circuit cuisson 32 A.',prin,null,'NF C 15-100 : tout logement a un circuit spécialisé 32 A en 6 mm² pour la plaque ou la cuisinière, même si tu cuisines au gaz aujourd’hui : il sert au futur occupant. Glisse « Plaque de cuisson » ou « Cuisinière » dans le tableau.');
   const spe=allC.filter(c=>['four','ll','lv','sl','congel','frigo','mo'].includes(c.k)||(c.k==='autre'&&c.cal>=16&&c.sec>=2.5)).length;
   if(spe<3)add('err',`${spe} circuit${spe>1?'s':''} spécialisé${spe>1?'s':''} pour le gros électroménager : il en faut au moins 3.`,prin,null,'NF C 15-100 : en plus du circuit cuisson, un logement a au moins 3 circuits spécialisés 2,5 mm² / 20 A, un par gros appareil (lave-linge, lave-vaisselle, four, sèche-linge, congélateur…). Même sans l’appareil aujourd’hui, le circuit doit être prévu : un « Autre circuit » 20 A en 2,5 mm² compte comme circuit en attente.');
@@ -420,12 +464,15 @@ function applyFix(P,op){
   if(op.k==='feed'){const it=find(op.item);if(it)it.feed=op.to}
   if(op.k==='idtype'){const d=find(op.id);if(d)d.type=op.type}
   if(op.k==='proj')P[op.key]=op.v;
+  if(op.k==='idcal'){const d=find(op.id);if(d)d.cal=op.cal}
+  if(op.k==='room'){const r=(P.rooms||[]).find(x=>x.id===op.id);if(r)r[op.key]=op.v}
+  if(op.k==='optimise'){const b=P.boards.find(x=>x.id===op.board);if(b)optimise(P,b)}
   if(op.k==='field'){const it=find(op.item);if(it&&it.c)it.c[op.key]=op.v}
   if(op.k==='set'){const it=find(op.item);if(it&&it.c)Object.assign(it.c,op.vals)}
   const bd=op.board&&P.boards.find(b=>b.id===op.board);
   if(op.k==='addrow'&&bd)bd.rows=Math.min(8,bd.rows+1);
   if(op.k==='tidy'&&bd)tidy(P,bd);
 }
-if(typeof module!=='undefined')module.exports={unitPrice,priceOf,rowCap,reserveNeed,DIVTPL,addDivBoard,vdrop,ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
+if(typeof module!=='undefined')module.exports={ROOMT,roomReq,mkRoom,unitPrice,priceOf,rowCap,reserveNeed,DIVTPL,addDivBoard,vdrop,ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
   newBoard,mkCirc,mkItem,generate,DEFAULT_HOME,loadOf,boardLoad,installed,principal,demand,suggestKva,recommend,feedMap,
   sortedIds,idName,usedMods,itemName,optimise,layout,tidy,attachDiv,analyse,boardOf,fmt};

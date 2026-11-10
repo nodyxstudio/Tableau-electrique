@@ -89,6 +89,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .clhead{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;margin-bottom:6px}
 .clhead h3{font-family:var(--f-display);font-size:19px;margin:0}
 .ctab input[type=text]{width:100%;min-width:120px}
+.rooms th,.rooms td{padding:6px 3px}
+.rooms select{width:100%;max-width:138px;font-size:12.5px}
+.rooms input[type=text]{min-width:0;max-width:138px;font-size:12.5px}
+.rooms input[type=number]{width:46px!important}
 .ctab input,.ctab select{border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:4px 5px;color:var(--ink);font-size:13px}
 .ctab input[type=number]{width:70px}
 .ctab tr.sel td{background:var(--accent-soft)}
@@ -607,6 +611,19 @@ function elemHTML(){
   else h+=`<div class="issue ok" style="margin-top:12px"><div class="lvl">OK</div>Cet élément respecte les règles vérifiées.</div>`;
   return h;
 }
+function roomsHTML(){
+  const rooms=S.rooms||[];
+  if(!rooms.length)return `<p class="hint">Indique tes pièces : le contrôle vérifie alors le nombre minimum de prises et de points d’éclairage exigé par la norme dans chacune, comme le Consuel.</p><div class="row-btns"><button class="btn small primary" type="button" data-act="roomsDefault">Ajouter les pièces habituelles</button><button class="btn small" type="button" data-act="addRoom">Ajouter une pièce</button></div>`;
+  let h=`<p class="hint">Une prise double compte pour 2 socles. En rouge : en dessous du minimum de la norme.</p><div class="tablewrap"><table class="ctab rooms"><thead><tr><th>Pièce</th><th>m²</th><th>Socles</th><th>Points lum.</th><th></th></tr></thead><tbody>`;
+  rooms.forEach(r=>{const q=roomReq(r),okS=(+r.socles||0)>=q.socles,okP=(+r.pts||0)>=q.pts;
+    h+=`<tr><td><select data-room="${r.id}:type" aria-label="Type de pièce">${Object.entries(ROOMT).map(([k,t])=>`<option value="${k}" ${k===r.type?'selected':''}>${t.n}</option>`).join('')}</select><br><input type="text" data-room="${r.id}:name" value="${esc(r.name)}" aria-label="Nom de la pièce" style="margin-top:4px;width:100%"></td>
+    <td><input type="number" min="0" step="1" data-room="${r.id}:surf" value="${+r.surf||''}" aria-label="Surface" style="width:56px"></td>
+    <td><input type="number" min="0" step="1" data-room="${r.id}:socles" value="${+r.socles||0}" aria-label="Socles" style="width:52px;${okS?'':'border-color:var(--err)'}"><br><span class="hint" style="color:${okS?'var(--muted)':'var(--err)'}">min. ${q.socles}</span></td>
+    <td><input type="number" min="0" step="1" data-room="${r.id}:pts" value="${+r.pts||0}" aria-label="Points d’éclairage" style="width:52px;${okP?'':'border-color:var(--err)'}"><br><span class="hint">min. ${q.pts}</span></td>
+    <td><button class="btn small" type="button" data-act="delRoom" data-room-id="${r.id}" aria-label="Retirer ${esc(r.name)}">×</button></td></tr>`});
+  h+=`</tbody></table></div><div class="row-btns"><button class="btn small" type="button" data-act="addRoom">Ajouter une pièce</button></div>`;
+  return h;
+}
 function bilanHTML(){
   const prin=principal(S), pf=demand(S), pi=installed(S), sug=suggestKva(S);
   let h=`<h3>Ton logement</h3>
@@ -616,6 +633,7 @@ function bilanHTML(){
   <label class="field"><span>Abonnement</span><select data-p="kva" data-num="1">${sel(KVA,S.kva,x=>x+' kVA (AGCP '+x*5+' A)')}</select></label>
   <label class="field"><span>Câble d’arrivée</span><select data-p="arr">${sel(['auto','10','16','25'],String(S.arr||'auto'),x=>x==='auto'?`Automatique (${S.kva>12?16:10} mm²)`:x+' mm² (AGCP ≤ '+ARRMAX[x]+' A)')}</select><span class="note">Le câble entre l’AGCP Enedis et ton tableau. 10 mm² suffit jusqu’à 12 kVA (60 A).</span></label>
   <label class="field"><span>Zone foudre</span><select data-p="foudre">${sel(['0','1'],S.foudre?'1':'0',x=>x==='1'?'Oui : parafoudre obligatoire':'Non')}</select></label>
+  <h3>Pièces du logement</h3>${roomsHTML()}
   <h3>Bilan de puissance</h3>
   <div class="kpis"><div class="kpi"><small>Puissance installée</small><b>${kw(pi)}</b></div><div class="kpi"><small>Puissance appelée</small><b>${kw(pf)}</b></div><div class="kpi"><small>Courant estimé</small><b>${Math.round(pf/230)} A</b></div><div class="kpi"><small>Abonnement conseillé</small><b>${sug} kVA</b></div></div>
   <p class="hint">Tout ne marche pas en même temps. Chaque circuit compte avec un coefficient (prises 0,3 · éclairage 0,7 · gros électroménager 0,6 · chauffage, clim, chauffe-eau, recharge 1), puis le total est multiplié par 0,7 pour l’ensemble du logement. En heures creuses, le chauffe-eau et la recharge de la voiture sont comptés la nuit, quand la cuisine et le reste tournent peu.</p>
@@ -674,6 +692,11 @@ function memoHTML(){
   <li>Nombre minimum de différentiels : 2 jusqu’à 35 m², 3 de 35 à 100 m², 4 au-delà, dont au moins un type A.</li>
   <li>8 circuits maximum par interrupteur différentiel.</li>
   <li>Circuits obligatoires : un circuit cuisson 32 A (6 mm²), au moins 3 circuits spécialisés 20 A (2,5 mm²) pour le gros électroménager, et le circuit du tableau de communication.</li>
+  <li>Éclairage et prises du logement répartis sur au moins deux interrupteurs différentiels.</li>
+  <li>Plus de 8 kVA de chauffage et d’eau chaude sous un même différentiel : 63 A obligatoire. Le 25 A est réservé aux petits circuits.</li>
+  <li>Pièces : séjour 1 socle par 4 m² (5 minimum, 7 au-delà de 28 m²) · chambre 3 · cuisine 6 dont 4 au plan de travail (3 si 4 m² ou moins) · salle de bain 1 hors volumes · entrée 1 · autres pièces de plus de 4 m² : 1 · un point d’éclairage par pièce.</li>
+  <li>Assez de circuits pour tous les socles et points d’éclairage des pièces.</li>
+  <li>Recommandé depuis 2024 : détecteur d’arc sur les prises des chambres et les circuits toujours alimentés ; parafoudre supplémentaire pour les équipements à plus de 10 m du tableau.</li>
   <li>La puissance de tes appareils n’est pas contrôlée par le Consuel : l’outil la calcule pour te prévenir si un disjoncteur risque de sauter, sans bloquer.</li>
   <li>Plaque de cuisson et lave-linge derrière un type A (ou F). Recharge VE : un 30 mA type A ou F par point de charge.</li>
   <li>Le calibre du disjoncteur ne dépasse jamais ce que le câble supporte : 1,5 mm² → 16 A · 2,5 → 20 A · 4 → 25 A · 6 → 32 A · 10 → 50 A · 16 → 63 A.</li>
@@ -857,6 +880,9 @@ $('#pbody').addEventListener('click',e=>{
   const a=e.target.closest('[data-act]');if(!a)return;
   const act=a.dataset.act;
   if(act==='copyList'){const {list}=needs();const txt=list.map(x=>{const m=Math.max(0,x.n-(+(S.stock[x.k]||0)));return m?`${m} × ${x.name}`:null}).filter(Boolean).join('\n')||'Rien à acheter';copy(txt);return}
+  if(act==='addRoom'){mutate(()=>{S.rooms=S.rooms||[];S.rooms.push(mkRoom('chambre','Nouvelle pièce',10))});return}
+  if(act==='delRoom'){mutate(()=>{S.rooms=(S.rooms||[]).filter(r=>r.id!==a.dataset.roomId)});return}
+  if(act==='roomsDefault'){mutate(()=>{const P=generate({...DEFAULT_HOME,...(S.home||{}),surf:S.surf});S.rooms=P.rooms});toast('Pièces ajoutées : ajuste les prises et lumières de chacune');return}
   const f=findItem(SEL);if(!f)return;const {b,it}=f;
   if(act==='auto')mutate(()=>{Object.assign(it.c,recommend(it.c,S))});
   if(act==='open'){S.cur=it.c.board;SEL=null;commit()}
@@ -889,6 +915,7 @@ function onFieldInput(e){
   if(!TYPING){HIST.push(JSON.stringify(S));TYPING=true}
   if(el.dataset.f){const f=findItem(el.dataset.id||SEL);if(!f)return;const [a,k]=el.dataset.f.split('.');if(a==='c')f.it.c[k]=el.value}
   else if(el.dataset.p)S[el.dataset.p]=el.value;
+  else if(el.dataset.room&&el.dataset.room.endsWith(':name')){const r=(S.rooms||[]).find(x=>x.id===el.dataset.room.split(':')[0]);if(r)r.name=el.value}
   else return;
   save();clearTimeout(TTI);TTI=setTimeout(renderBoard,250);
 }
@@ -897,6 +924,7 @@ function onFieldChange(e){
   if(el.type==='text'&&TYPING){TYPING=false;clearTimeout(TTI);render();return}
   if(el.dataset.stock!==undefined){mutate(()=>{S.stock[el.dataset.stock]=Math.max(0,+el.value||0)});return}
   if(el.dataset.price!==undefined){mutate(()=>{S.prices=S.prices||{};S.prices[el.dataset.price]=el.value===''?'':Math.max(0,+el.value)});return}
+  if(el.dataset.room){const [id,key]=el.dataset.room.split(':');mutate(()=>{const r=(S.rooms||[]).find(x=>x.id===id);if(!r)return;let v=el.value;if(['surf','socles','pts'].includes(key))v=Math.max(0,+v||0);r[key]=v;if(key==='type'&&(!r.name||Object.values(ROOMT).some(t=>t.n===r.name)))r.name=ROOMT[v].n;if(key==='type'||key==='surf'){const q=roomReq(r);if((+r.socles||0)<q.socles&&key==='type')r.socles=q.socles}});return}
   if(el.dataset.p){mutate(()=>{let v=el.value;if(el.dataset.num)v=+v;if(el.dataset.p==='foudre')v=v==='1';S[el.dataset.p]=v});return}
   if(el.dataset.f)setField(el.dataset.id||SEL,el.dataset.f,el.value);
 }
@@ -1066,6 +1094,7 @@ async function makePDF(){
     });
     y+=3;
   }
+  if((S.rooms||[]).length){rule();txt('Pièces du logement',{size:14,bold:true,gap:2});(S.rooms||[]).forEach(r=>{const q=roomReq(r);txt(`${r.name} (${ROOMT[r.type]?ROOMT[r.type].n:''}${r.surf?', '+r.surf+' m²':''}) : ${r.socles} socle(s) sur ${q.socles} minimum · ${r.pts} point(s) d’éclairage`,{size:9.5,gap:0.8,color:(+r.socles>=q.socles&&+r.pts>=q.pts)?[30,32,36]:[196,50,28]})});y+=3}
   rule();txt('Contrôle NF C 15-100',{size:14,bold:true,gap:2});
   if(!ISSUES.length)txt('Aucun problème détecté.',{size:10});
   const rk={err:0,warn:1,info:2};[...ISSUES].sort((a,b)=>rk[a.lvl]-rk[b.lvl]).forEach(i=>{txt(`${{err:'À CORRIGER',warn:'CONSEIL',info:'INFO'}[i.lvl]} · ${i.msg}`,{size:9.5,bold:true,color:i.lvl==='err'?[196,50,28]:i.lvl==='warn'?[176,106,0]:[36,99,196],gap:0.5});if(i.why)txt(i.why,{size:8.5,color:[100,100,100],gap:2.5,indent:3})});

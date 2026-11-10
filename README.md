@@ -48,6 +48,8 @@ Tu glisses un four, une clim ou des prises sur une rangée : le bon disjoncteur 
 - **Enregistrer / ouvrir** un fichier projet, **export PDF**, écran d’accueil (continuer, ouvrir, créer).
 - **Prix indicatifs** (TTC, modifiables) et budget du tableau, par marque.
 - **Contrôle immédiat** à chaque disjoncteur posé ou modifié : courant = puissance ÷ 230 V comparé au calibre, marge, câble.
+- **Pièces du logement** : nombre minimum de prises et de points d’éclairage par pièce (séjour, chambres, cuisine, salle de bain…), et assez de circuits pour tout alimenter.
+- **Circuits obligatoires** : cuisson 32 A, 3 circuits spécialisés, tableau de communication ; éclairage et prises répartis sur deux différentiels ; 63 A au-delà de 8 kVA de chauffage.
 - **Matériel** : gammes Schneider (Resi9) ou Legrand (DX³), liste d’achat selon ton stock.
 - **Assistant « Créer depuis mon logement »** : génère un tableau complet et conforme à partir de quelques questions.
 - **Manipulation** : toucher un module ouvre une barre Régler / Dupliquer / Supprimer. On peut aussi glisser un module vers la corbeille. Un module lâché entre deux autres s'insère et décale la rangée.

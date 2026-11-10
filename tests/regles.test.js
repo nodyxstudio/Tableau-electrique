@@ -10,7 +10,7 @@ const has = (P, re) => R.analyse(P).some(i => re.test(i.msg));
 function projet(circuits, opts = {}) {
   const P = R.generate({ ...R.DEFAULT_HOME, ...opts.home });
   const B = R.principal(P);
-  B.items = []; B.rows = opts.rows || 3; B.mpr = 13;
+  B.items = []; B.rows = opts.rows || 3; B.mpr = 13; P.rooms = []; P.boards = [B];
   const id = Object.assign(R.mkItem('id', { cal: opts.cal || 40, type: opts.type || 'A' }), { row: 0, col: 0 });
   B.items.push(id);
   circuits.forEach((c, k) => { c.row = 0; c.col = 2 + k; B.items.push(c); });
@@ -240,4 +240,40 @@ test('circuits obligatoires : cuisson 32 A, 3 spécialisés, communication', () 
   assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /il en faut au moins 3/.test(i.msg)));
   drop(['com']);
   assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /tableau de communication/.test(i.msg)));
+});
+
+test('pièces : équipement minimum NF C 15-100', () => {
+  assert.equal(R.roomReq({ type: 'sejour', surf: 20 }).socles, 5);
+  assert.equal(R.roomReq({ type: 'sejour', surf: 26 }).socles, 7);
+  assert.equal(R.roomReq({ type: 'sejour', surf: 40 }).socles, 7);
+  assert.equal(R.roomReq({ type: 'chambre', surf: 9 }).socles, 3);
+  assert.equal(R.roomReq({ type: 'cuisine', surf: 8 }).socles, 6);
+  assert.equal(R.roomReq({ type: 'cuisine', surf: 4 }).socles, 3);
+  assert.equal(R.roomReq({ type: 'wc', surf: 2 }).socles, 0);
+  const P = R.generate(R.DEFAULT_HOME);
+  const ch = P.rooms.find(r => r.type === 'chambre'); ch.socles = 2;
+  const e = R.analyse(P).find(i => /il en faut au moins 3/.test(i.msg));
+  assert.equal(e.lvl, 'err');
+  R.applyFix(P, e.fix[0].op);
+  assert.equal(ch.socles, 3);
+});
+
+test('pièces et circuits : assez de circuits pour toutes les prises et lumières', () => {
+  const P = R.generate(R.DEFAULT_HOME);
+  P.rooms.push(R.mkRoom('chambre', 'Chambre 9', 12, { socles: 40 }));
+  assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /circuits de prises n’en prévoient que/.test(i.msg)));
+});
+
+test('différentiel : plus de 8 kVA de chauffage impose un 63 A', () => {
+  const ch = [1, 2, 3].map(k => { const d = disj('chauffage', { label: 'Ch' + k, p: 3000 }); return d; });
+  const { P, id } = projet(ch, { type: 'AC', cal: 40 });
+  const e = R.analyse(P).find(i => /il faut un 63 A/.test(i.msg));
+  assert.equal(e.lvl, 'err');
+  R.applyFix(P, e.fix[0].op);
+  assert.equal(id.cal, 63);
+});
+
+test('éclairage sur un seul différentiel : bloquant pour tout le logement', () => {
+  const { P } = projet([disj('eclairage', { label: 'É1', n: 3 }), disj('eclairage', { label: 'É2', n: 3 })]);
+  assert.ok(R.analyse(P).some(i => i.lvl === 'err' && /l’éclairage est sur le même différentiel/.test(i.msg)));
 });
