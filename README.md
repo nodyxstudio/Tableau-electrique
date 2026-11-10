@@ -22,6 +22,10 @@ Outil web pour concevoir des tableaux électriques résidentiels conformes à la
 - **Couleurs par différentiel** : chaque différentiel et les disjoncteurs qu’il protège partagent une couleur. Les problèmes proposent une correction en un clic.
 - **Câble d’arrivée** au choix (10, 16 ou 25 mm²), avec contrôle par rapport au réglage de l’AGCP.
 - **Appareils** : réfrigérateur, cave à vin, micro-ondes, hotte, cuisinière, sèche-serviettes, plancher chauffant, ballon thermodynamique, chaudière, piscine, spa, portail, alarme, aspiration centralisée, pompe…
+- **Modèles de divisionnaire** : atelier (bâtiment séparé), garage, étage, abri de jardin, piscine ou vide, avec circuits, interrupteur de tête, différentiels et départ.
+- **Chute de tension** : indique la longueur d’un câble, l’outil calcule la chute et propose la bonne section.
+- **Tester un différentiel** : il « saute », ses circuits s’éteignent et le courant animé s’arrête dans les fils.
+- **Rangées nommées**, repères enregistrés pendant la frappe, guide de démarrage.
 - **Matériel** : gammes Schneider (Resi9) ou Legrand (DX³), liste d’achat selon ton stock.
 - **Assistant « Créer depuis mon logement »** : génère un tableau complet et conforme à partir de quelques questions.
 - **Manipulation** : toucher un module ouvre une barre Régler / Dupliquer / Supprimer. On peut aussi glisser un module vers la corbeille. Un module lâché entre deux autres s'insère et décale la rangée.

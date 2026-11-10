@@ -175,6 +175,22 @@ ul.rules li{margin-bottom:5px}
 .tip .r{display:flex;gap:8px}.tip .r span:first-child{color:var(--muted);min-width:68px}
 .tip .st{margin-top:5px;font-weight:700}.tip .st.ok{color:var(--ok)}.tip .st.warn{color:var(--warn)}.tip .st.err{color:var(--err)}
 .issue.info .lvl{color:var(--neutre)}
+.flowing{stroke-dasharray:3 9;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-12}}
+#bsvg .mod.dead{opacity:.5}
+.cheer .big{animation:cheer .9s ease-out 2}
+@keyframes cheer{0%{transform:scale(1)}40%{transform:scale(1.25);box-shadow:0 0 0 10px var(--ok-soft)}100%{transform:scale(1)}}
+.intro{padding:14px 16px;display:grid;gap:10px;border-color:var(--accent)}
+.intro h2{font-family:var(--f-display);font-size:22px;margin:0}
+.intro ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px}
+.tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:12px 0}
+.tpl{border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:12px;text-align:left;cursor:pointer;display:grid;gap:4px}
+.tpl:hover{border-color:var(--accent);background:var(--accent-soft)}
+.tpl .ic{font-size:26px}.tpl b{font-size:15px}.tpl span{font-size:12.5px;color:var(--muted)}
+details.explain{background:var(--surface-2);border-radius:8px;padding:8px 11px;margin:8px 0;font-size:13.5px}
+details.explain summary{cursor:pointer;font-weight:700}
+details.explain p{margin:6px 0}
+@media (prefers-reduced-motion:reduce){.flowing{animation:none;opacity:0}.cheer .big{animation:none}}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-weight:600;font-size:14px;z-index:60;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer}
 .modal{position:fixed;inset:0;background:rgba(10,12,14,.55);z-index:70;display:grid;place-items:center;padding:16px}
@@ -215,6 +231,7 @@ textarea{width:100%;min-height:180px;border:1px solid var(--line);background:var
 <main class="app">
   <aside class="card palette" id="palette" aria-label="Matériel à glisser"></aside>
   <section class="stage">
+    <div class="card intro" id="intro" hidden></div>
     <div class="card boardbar" id="boardbar"></div>
     <div class="card boardwrap" id="boardwrap"></div>
     <div class="legend">
@@ -243,6 +260,24 @@ const $=(s,el=document)=>el.querySelector(s);
 let S;try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
 if(!S||!S.boards||!S.boards.length)S=generate(DEFAULT_HOME);
 let SEL=null, PTAB='verif', ISSUES=[];
+/* Effets : courant qui circule, coupures de test (non enregistrées) */
+let TRIP=new Set(), FLOW=true, LASTERR=null;try{FLOW=localStorage.getItem('tm-flow')!=='0'}catch(e){}
+function boardOn(b){if(b.kind==='principal')return true;const P0=principal(S);const f=P0.items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id);return !!f&&itemOn(P0,f)}
+function itemOn(b,it){if(!boardOn(b)||TRIP.has(it.id))return false;if(it.t!=='sect'&&b.items.some(i=>i.t==='sect'&&TRIP.has(i.id)))return false;const f=feedMap(b)[it.id];return !(f&&f.by&&TRIP.has(f.by))}
+function ON(it){return itemOn(cur(),it)}
+function toggleTrip(id){const b=cur(),it=b.items.find(i=>i.id===id);if(!it)return;
+  if(TRIP.has(id)){TRIP.delete(id);render();toast(`${itemName(it)} remis : le courant repasse`);return}
+  const before=new Set(S.boards.flatMap(x=>x.items.filter(i=>i.t==='disj'&&itemOn(x,i)).map(i=>i.id)));
+  TRIP.add(id);const lost=S.boards.flatMap(x=>x.items.filter(i=>i.t==='disj'&&before.has(i.id)&&!itemOn(x,i)).map(i=>i.c.label||CIRC[i.c.k].n));
+  render();toast(lost.length?`${it.t==='id'?idName(b,it)+' a sauté':itemName(it)+' coupé'} : plus de courant pour ${lost.slice(0,6).join(', ')}${lost.length>6?'…':''}`:'Coupé');}
+const TYPE_EXPLAIN=`<details class="explain"><summary>Comprendre les types AC, A, F et B</summary>
+<p>Un différentiel compare le courant qui part par la phase et celui qui revient par le neutre. S’il manque 30 mA, c’est que du courant fuit ailleurs, par la terre ou par une personne : il coupe.</p>
+<p><b>Type AC</b> : voit les fuites en courant alternatif « pur ». Suffit pour l’éclairage, les prises, les radiateurs, le chauffe-eau, le four. C’est le moins cher.</p>
+<p><b>Type A</b> : voit en plus les fuites « hachées » par l’électronique (courant redressé). C’est le cas des plaques à induction, des lave-linge, des chargeurs et des variateurs. Un type AC peut être aveuglé par ces fuites et ne pas couper.</p>
+<p><b>Type F</b> : un type A renforcé pour les appareils à variateur de vitesse (clim, pompe à chaleur, lave-linge récent). Il voit les fuites haute fréquence et coupe moins pour rien.</p>
+<p><b>Type B</b> : voit aussi le courant continu « lisse ». Pour une borne de recharge sans protection intégrée, des variateurs triphasés ou certains onduleurs photovoltaïques.</p>
+<p>En résumé : AC pour la lumière, les prises et le chauffage · A pour la cuisine et le linge · A ou F pour la clim et la PAC · voiture : A si la borne détecte le courant continu 6 mA, sinon B.</p></details>`;
+
 const HIST=[];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function mutate(fn){HIST.push(JSON.stringify(S));if(HIST.length>80)HIST.shift();fn();commit()}
@@ -252,7 +287,7 @@ function cur(){return boardOf(S,S.cur)||S.boards[0]}
 function findItem(id){for(const b of S.boards){const it=b.items.find(i=>i.id===id);if(it)return{b,it}}return null}
 
 /* ================= Dessin des modules ================= */
-function modSVG(it,brandKey){
+function modSVG(it,brandKey,off){
   const B=BR[brandKey]||BR.generic, w=W[it.t]*MOD, h=MOD_H;
   let s=`<rect x="1.5" y="0" width="${w-3}" height="${h}" rx="5" fill="var(--m-body)" stroke="var(--m-edge)"/>`;
   s+=`<rect x="4" y="4" width="${w-8}" height="22" rx="3" fill="var(--m-term)"/><rect x="4" y="${h-26}" width="${w-8}" height="22" rx="3" fill="var(--m-term)"/>`;
@@ -262,12 +297,12 @@ function modSVG(it,brandKey){
   const T=(x,y,t,sz=10,col='var(--m-ink)',fam='var(--f-mono)',wt=700)=>`<text x="${x}" y="${y}" text-anchor="middle" font-family="${fam}" font-size="${sz}" font-weight="${wt}" fill="${col}">${t}</text>`;
   const cx=w/2;
   if(it.t==='disj'){
-    s+=`<rect x="${cx-7}" y="44" width="14" height="34" rx="3" fill="${B.lever}"/><rect x="${cx-5}" y="46" width="10" height="9" rx="2" fill="#ffffff" opacity=".22"/>`;
-    s+=`<rect x="${cx-6}" y="83" width="12" height="5" rx="1.5" fill="var(--m-red)"/>`;
+    s+=`<rect x="${cx-7}" y="44" width="14" height="34" rx="3" fill="var(--m-term)"/><rect x="${cx-7}" y="${off?60:44}" width="14" height="18" rx="3" fill="${B.lever}"/>`;
+    s+=`<rect x="${cx-6}" y="83" width="12" height="5" rx="1.5" fill="${off?'#2f9e4f':'var(--m-red)'}"/>`;
     s+=T(cx,103,'C'+it.c.cal,11);
     if(B.short)s+=T(cx,114,B.short,6,'var(--m-sub)','var(--f-body)',600);
   }else if(it.t==='id'){
-    s+=`<rect x="${cx-9}" y="44" width="18" height="34" rx="3" fill="${B.lever}"/><rect x="${cx-7}" y="46" width="14" height="9" rx="2" fill="#ffffff" opacity=".22"/>`;
+    s+=`<rect x="${cx-9}" y="44" width="18" height="34" rx="3" fill="var(--m-term)"/><rect x="${cx-9}" y="${off?60:44}" width="18" height="18" rx="3" fill="${B.lever}"/>`;
     s+=`<rect x="9" y="40" width="${it.type==='AC'?20:14}" height="13" rx="2" fill="none" stroke="var(--m-ink)" stroke-width="1.2"/>`+T(it.type==='AC'?19:16,50,it.type,8.5);
     s+=`<circle cx="${w-15}" cy="47" r="6" fill="var(--m-yellow)" stroke="var(--m-sub)" stroke-width=".8"/>`+T(w-15,50,'T',7);
     s+=T(cx,96,it.cal+' A',12)+T(cx,108,'30 mA',8.5,'var(--m-sub)');
@@ -304,7 +339,8 @@ function renderBoard(){
     s+=`<rect x="${LEFT-8}" y="${my+MOD_H/2-11}" width="${b.mpr*MOD+16}" height="22" rx="3" fill="url(#rail)"/>`;
     for(let c=0;c<b.mpr;c++)s+=`<rect x="${LEFT+c*MOD+2}" y="${my+6}" width="${MOD-4}" height="${MOD_H-12}" rx="4" fill="none" stroke="var(--slot)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
     s+=`<rect x="${LEFT-6}" y="${my+MOD_H+22}" width="${b.mpr*MOD+12}" height="100" rx="4" fill="var(--strip)" stroke="var(--coffret-edge)"/>`;
-    s+=`<text x="${LEFT+b.mpr*MOD+26}" y="${my+MOD_H/2+4}" text-anchor="middle" font-family="var(--f-display)" font-weight="700" font-size="13" fill="var(--muted)">${r+1}</text>`;
+    const rn=(b.rowNames||[])[r];
+    s+=`<g data-rowlabel="${r}" style="cursor:pointer"><rect x="${LEFT+b.mpr*MOD+12}" y="${my}" width="28" height="${MOD_H}" fill="transparent"/><text transform="translate(${LEFT+b.mpr*MOD+30},${my+MOD_H/2}) rotate(-90)" text-anchor="middle" font-family="var(--f-display)" font-weight="700" font-size="13" fill="var(--muted)">${r+1}${rn?' · '+esc(rn.slice(0,22)):''}</text></g>`;
   }
   // fils d'arrivée vers différentiels et modules de tête
   const heads=b.items.filter(i=>i.t==='id'||fm[i.id].via==='direct'||i.t==='sect'||i.t==='para').sort((a,c)=>a.row-c.row||a.col-c.col);
@@ -315,6 +351,7 @@ function renderBoard(){
     [['var(--phase)',-3],['var(--neutre)',3]].forEach(([col,o])=>{
       s+=`<path d="M${gx+o} 46 V${gy+o/1.5} H${tx+o} V${p.y+6}" fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" opacity=".9"/>`;
     });
+    if(FLOW&&ON(it))s+=`<path class="flowing" d="M${gx-3} 46 V${gy-2} H${tx-3} V${p.y+6}" fill="none" stroke="var(--m-yellow)" stroke-width="1.8" stroke-linejoin="round"/>`;
   });
   if(heads.length){const hs=b.kind==='principal'?(arrSec(S)):((principal(S).items.find(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id)||{c:{sec:10}}).c.sec);
     s+=`<rect x="3" y="58" width="38" height="15" rx="7.5" fill="var(--ink)"/><text x="22" y="69" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${fmt(hs)} mm²</text>`}
@@ -338,7 +375,8 @@ function renderBoard(){
   // modules
   b.items.forEach(it=>{
     const p=pos(it), w=W[it.t]*MOD;
-    s+=`<g class="mod" data-item="${it.id}" transform="translate(${p.x},${p.y})">${modSVG(it,B)}`;
+    const on=ON(it);
+    s+=`<g class="mod${!on&&!TRIP.has(it.id)?' dead':''}" data-item="${it.id}" transform="translate(${p.x},${p.y})">${modSVG(it,B,TRIP.has(it.id))}`;
     if(SEL===it.id)s+=`<rect x="-2" y="-3" width="${w+4}" height="${MOD_H+6}" rx="7" fill="none" stroke="var(--accent)" stroke-width="3.5"/>`;
     const lv=st[it.id];
     if(fm[it.id].via==='fil'){const d=b.items.find(i=>i.id===it.feed);s+=`<circle cx="8" cy="38" r="6" fill="var(--g${sortedIds(b).indexOf(d)%6+1})" stroke="var(--m-body)" stroke-width="1.5"/>`}
@@ -348,7 +386,7 @@ function renderBoard(){
     const ly=p.y+MOD_H+22;
     if(it.t==='disj'||it.t==='prise'||it.t==='cont'||it.t==='tl'){
       const cx=p.x+MOD/2;
-      if(it.t==='disj'){const sw=Math.min(5.5,1.4+Math.sqrt(it.c.sec)).toFixed(1);s+=`<path d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--phase)" stroke-width="${sw}"/><path d="M${cx+6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--neutre)" stroke-width="${sw}"/><rect x="${cx-15}" y="${p.y+MOD_H+3}" width="30" height="14" rx="7" fill="var(--ink)"/><text x="${cx}" y="${p.y+MOD_H+13}" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${fmt(it.c.sec)}</text>`}
+      if(it.t==='disj'){const sw=Math.min(5.5,1.4+Math.sqrt(it.c.sec)).toFixed(1);s+=`<path d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--phase)" stroke-width="${sw}"/><path d="M${cx+6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--neutre)" stroke-width="${sw}"/><rect x="${cx-15}" y="${p.y+MOD_H+3}" width="30" height="14" rx="7" fill="var(--ink)"/><text x="${cx}" y="${p.y+MOD_H+13}" text-anchor="middle" font-family="var(--f-mono)" font-size="8.5" font-weight="700" fill="var(--bg)">${fmt(it.c.sec)}</text>`;if(FLOW&&on)s+=`<path class="flowing" d="M${cx-6} ${p.y+MOD_H-8}V${ly+4}" stroke="var(--m-yellow)" stroke-width="1.6"/>`}
     }
     const l1=it.t==='disj'?(it.c.k==='div'&&boardOf(S,it.c.board)?'→ '+boardOf(S,it.c.board).name:(it.c.label||CIRC[it.c.k].n)):it.t==='id'?idName(b,it):itemName(it);
     const l2=it.t==='disj'?`${it.c.cal} A · ${fmt(it.c.sec)} mm²`:it.t==='id'?`${it.cal} A · type ${it.type}`:'';
@@ -384,7 +422,7 @@ function renderFab(){
   if(!SEL)return;const b=cur(),it=b.items.find(i=>i.id===SEL);if(!it)return;
   const g=document.querySelector(`[data-item="${SEL}"]`),wrap=$('#boardwrap');if(!g)return;
   const f=document.createElement('div');f.id='fab';f.className='fab';
-  f.innerHTML=`<b>${esc(itemName(it))}</b><button type="button" data-fab="edit">Régler</button><button type="button" data-fab="dup">Dupliquer</button><button type="button" class="del" data-fab="del">${TRASH_SVG}Supprimer</button>`;
+  f.innerHTML=`<b>${esc(itemName(it))}</b><button type="button" data-fab="edit">Régler</button><button type="button" data-fab="dup">Dupliquer</button>${['id','disj','sect'].includes(it.t)?`<button type="button" data-fab="trip" title="Simuler une coupure">${TRIP.has(it.id)?'Remettre':it.t==='id'?'Tester':'Couper'}</button>`:''}<button type="button" class="del" data-fab="del">${TRASH_SVG}Supprimer</button>`;
   wrap.appendChild(f);
   const r=g.getBoundingClientRect(),wr=wrap.getBoundingClientRect(),fw=f.offsetWidth;
   let left=r.left-wr.left+wrap.scrollLeft+r.width/2-fw/2;left=Math.max(4,Math.min(left,wrap.scrollWidth-fw-4));
@@ -426,7 +464,7 @@ function renderPalette(){
     });
     h+=`</div>${g.note?`<p class="hint">${esc(g.note)}</p>`:''}</details>`;
   });
-  h+=`<p class="hint">Glisse un élément sur une rangée. Un disjoncteur posé à droite d’un différentiel est alimenté par le peigne.</p>`;
+  h+=`<p class="hint">Glisse un élément sur une rangée. Un disjoncteur posé à droite d’un différentiel est alimenté par le peigne. Pour un atelier, un garage ou un étage, utilise « + Divisionnaire » en haut.</p>`;
   $('#palette').innerHTML=h;
 }
 
@@ -439,6 +477,9 @@ function renderTabs(){
   $('#boardbar').innerHTML=`<label>Nom <input type="text" id="bName" value="${esc(b.name)}"></label>
   <label>Rangées <span class="stepper"><button type="button" data-rows="-1" aria-label="Moins de rangées">−</button><output>${b.rows}</output><button type="button" data-rows="1" aria-label="Plus de rangées">+</button></span></label>
   <label>Modules <select id="bMpr"><option value="13" ${b.mpr===13?'selected':''}>13</option><option value="18" ${b.mpr===18?'selected':''}>18</option></select></label>
+  <button class="btn small" type="button" id="bRows">Nommer les rangées</button>
+  <button class="btn small" type="button" id="bFlow" aria-pressed="${FLOW}">${FLOW?'Courant animé':'Courant fixe'}</button>
+  ${TRIP.size?`<button class="btn small" type="button" id="bReset">Tout remettre (${TRIP.size})</button>`:''}
   <label>Marque <select id="bBrand">${Object.entries(BR).map(([k,v])=>`<option value="${k}" ${S.brand===k?'selected':''}>${v.name}</option>`).join('')}</select></label>
   <span class="hint">${usedMods(b)}/${b.rows*b.mpr} modules · réserve ${Math.round((1-usedMods(b)/(b.rows*b.mpr))*100)} %</span>
   ${b.kind==='div'?`<label>Emplacement <select id="bEt"><option value="">—</option>${ETAGES.map(x=>`<option ${x===b.etage?'selected':''}>${x}</option>`).join('')}</select></label>`:''}
@@ -452,7 +493,9 @@ function renderScore(){
   const cls=e?'err':w?'warn':'ok';
   const title=e?`${e} point${e>1?'s':''} à corriger`:w?'Conforme, avec des conseils':'Prêt pour le Consuel';
   const sub=e?'Le Consuel refuserait ce tableau en l’état.':w?`Rien de bloquant pour le Consuel. ${w} conseil${w>1?'s':''} pour faire encore mieux.`:'Toutes les règles vérifiées sont respectées.';
-  $('#score').className='score '+cls;
+  $('#score').className='score '+cls+(LASTERR&&!e?' cheer':'');
+  if(LASTERR&&!e)setTimeout(()=>toast('Bravo : plus rien de bloquant pour le Consuel'),50);
+  LASTERR=e;
   $('#score').innerHTML=`<div class="big">${e?e:w?'✓':'✓'}</div><div><h2>${title}</h2><p>${sub}</p></div>`;
 }
 const PTABS=[['elem','Élément'],['verif','Contrôle'],['bilan','Logement'],['mat','Matériel'],['memo','Règles']];
@@ -502,6 +545,7 @@ function elemHTML(){
     h+=`<label class="field"><span>Repère</span><input type="text" data-f="c.label" value="${esc(c.label)}" placeholder="ex. PC chambre 2"></label>`;
     if(c.k!=='div')h+=`<label class="field"><span>Étage</span><select data-f="c.etage"><option value="">—</option>${ETAGES.map(x=>`<option ${x===c.etage?'selected':''}>${x}</option>`).join('')}</select></label><label class="field"><span>Pièce</span><input type="text" data-f="c.room" value="${esc(c.room||'')}" placeholder="ex. chambre 2"></label>`;
     if(sp.cnt)h+=`<label class="field"><span>Nombre de ${sp.cnt}</span><input type="number" min="0" max="40" data-f="c.n" value="${+c.n||0}"><span class="note">Limite : ${esc(sp.lim)}</span></label>`;
+    {const dv=+c.len>0?vdrop(+c.len,circI(S,it),c.sec):0;h+=`<label class="field"><span>Longueur câble (m)</span><input type="number" min="0" step="1" data-f="c.len" value="${+c.len||''}" placeholder="facultatif"><span class="note">${dv?`Chute de tension : <b>${dv.toFixed(1).replace('.',',')} %</b> (max ${c.k==='eclairage'?3:c.k==='div'?2:5} %)`:'Indique la longueur pour vérifier la chute de tension.'}</span></label>`}
     if(c.k!=='div')h+=`<label class="field"><span>Puissance (W)</span><input type="number" min="0" step="50" data-f="c.p" value="${+c.p||0}">${(c.k==='clim'||c.k==='pac')?`<span class="note">Mets la puissance électrique absorbée (étiquette « P absorbée » ou « input »), pas la puissance froid. Une clim de 2,5 kW froid absorbe souvent 700 à 900 W.</span>`:''}</label>`;
     if(c.k==='div'){
       const divs=S.boards.filter(x=>x.kind==='div');
@@ -518,7 +562,7 @@ function elemHTML(){
     h+=`<div class="row-btns"><button class="btn primary small" type="button" data-act="auto">Régler tout seul</button>${c.k==='div'&&c.board?`<button class="btn small" type="button" data-act="open">Ouvrir le tableau</button>`:''}<button class="btn small" type="button" data-act="dup">Dupliquer</button><button class="btn small danger" type="button" data-act="del">Retirer</button></div>`;
   }else if(it.t==='id'){
     const cs=b.items.filter(i=>fm[i.id].by===it.id);const I=cs.reduce((a,i)=>a+loadOf(S,i),0)/230;
-    h+=`<h3>${idName(b,it)} · ${it.cal} A type ${it.type}</h3>`;
+    h+=`<h3>${idName(b,it)} · ${it.cal} A type ${it.type}</h3>`+TYPE_EXPLAIN;
     h+=`<div class="field wide"><span>Calibre</span><div class="chips">${[25,40,63].map(x=>`<button type="button" class="chip${x===it.cal?' on':''}${x<I?' bad':''}" data-chip="cal" data-v="${x}">${x} A</button>`).join('')}</div></div>`;
     h+=`<div class="field wide"><span>Type</span><div class="chips">${['AC','A','F'].map(x=>`<button type="button" class="chip${x===it.type?' on':''}" data-chip="type" data-v="${x}">Type ${x}</button>`).join('')}</div><span class="note">AC : courant alternatif classique · A : détecte aussi les fuites à composante continue (induction, lave-linge, recharge) · F : comme A, plus résistant aux variateurs (clim, PAC).</span></div>`;
     const needA=cs.filter(i=>i.t==='disj'&&(TY[i.c.k]==='A'||TY[i.c.k]==='A!'));
@@ -582,7 +626,7 @@ function matHTML(){
   return h;
 }
 function memoHTML(){
-  let h=`<h3>Circuits du logement</h3><div class="tablewrap"><table><thead><tr><th>Circuit</th><th>Câble</th><th>Disj.</th><th>Règle</th></tr></thead><tbody>`;
+  let h=`<h3>Différentiels : AC ou A ?</h3>${TYPE_EXPLAIN.replace('<details class="explain">','<details class="explain" open>')}<h3>Circuits du logement</h3><div class="tablewrap"><table><thead><tr><th>Circuit</th><th>Câble</th><th>Disj.</th><th>Règle</th></tr></thead><tbody>`;
   Object.entries(CIRC).filter(([k])=>k!=='autre').forEach(([k,c])=>{
     const cab=c.ptab?'selon W':k==='div'?'6 / 10 / 16':fmt(c.sec);
     const cal=c.ptab?'selon W':k==='div'?'32 / 40 / 63':c.cal+(k==='eclairage'?' (ou 10)':k==='prises'?' (ou 16 en 1,5)':'');
@@ -724,15 +768,18 @@ function tapAdd(d){
 }
 
 /* ================= Événements ================= */
-$('#palette').addEventListener('pointerdown',e=>{const t=e.target.closest('[data-tile]');if(!t||e.button>0)return;const it=tileItem(t.dataset.tile);startDrag(e,{it,from:false,label:t.querySelector('b').textContent})});
+$('#palette').addEventListener('pointerdown',e=>{const ae=document.activeElement;if(ae&&ae.matches&&ae.matches('input,textarea'))ae.blur();const t=e.target.closest('[data-tile]');if(!t||e.button>0)return;const it=tileItem(t.dataset.tile);startDrag(e,{it,from:false,label:t.querySelector('b').textContent})});
 $('#boardwrap').addEventListener('click',e=>{const a=e.target.closest('[data-fab]');if(!a||!SEL)return;const act=a.dataset.fab;
   if(act==='del')delItem(SEL);
   if(act==='dup')dupItem(SEL);
+  if(act==='trip'){toggleTrip(SEL);return}
   if(act==='edit'){PTAB='elem';renderPanel();const pn=$('#panel');if(pn.getBoundingClientRect().top>window.innerHeight*.6)pn.scrollIntoView({behavior:'smooth',block:'start'})}});
 $('#boardwrap').addEventListener('pointerdown',e=>{
+  const ae=document.activeElement;if(ae&&ae.matches&&ae.matches('input,textarea'))ae.blur();
   if(e.button>0||e.target.closest('#fab'))return;
   const wh=e.target.closest('[data-wire]');
   if(wh){const b=cur(),it=b.items.find(i=>i.id===wh.dataset.wire),p=pos(it);startDrag(e,{kind:'wire',id:it.id,x:p.x+MOD/2,y:p.y-38});return}
+  if(e.target.closest('[data-rowlabel]')){openRows(+e.target.closest('[data-rowlabel]').dataset.rowlabel);return}
   if(e.target.closest('[data-head]')){PTAB='bilan';renderPanel();toast('Réglages de l’arrivée dans l’onglet Logement');return}
   const g=e.target.closest('[data-item]');
   if(g){const it=cur().items.find(i=>i.id===g.dataset.item);startDrag(e,{it,from:true,label:itemName(it)});return}
@@ -740,24 +787,21 @@ $('#boardwrap').addEventListener('pointerdown',e=>{
 });
 $('#tabs').addEventListener('click',e=>{
   const t=e.target.closest('[data-board]');if(t){S.cur=t.dataset.board;SEL=null;DELB=null;commit();return}
-  if(e.target.id==='addDiv')mutate(()=>{
-    const n=S.boards.filter(b=>b.kind==='div').length+1;const D=newBoard('Divisionnaire '+n,'div');
-    D.items.push(Object.assign(mkItem('sect'),{row:0,col:0}),Object.assign(mkItem('id',{cal:40,type:'AC'}),{row:0,col:2}));
-    S.boards.push(D);const P0=principal(S);const f=mkCirc('div',{label:'Départ '+D.name});f.c.board=D.id;f.feed='head';
-    let ok=false;for(let r=0;r<P0.rows&&!ok;r++)for(let c=0;c<P0.mpr&&!ok;c++)if(free(P0,r,c,1)){f.row=r;f.col=c;ok=true}
-    if(!ok){P0.rows++;f.row=P0.rows-1;f.col=0}
-    P0.items.push(f);S.cur=D.id;SEL=null;toast('Tableau divisionnaire créé, avec son départ dans le tableau principal');
-  });
+  if(e.target.id==='addDiv')openDivTemplates();
 });
 $('#boardbar').addEventListener('click',e=>{
+  if(e.target.id==='bRows'){openRows();return}
+  if(e.target.id==='bFlow'){FLOW=!FLOW;try{localStorage.setItem('tm-flow',FLOW?'1':'0')}catch(x){}render();return}
+  if(e.target.id==='bReset'){TRIP.clear();render();toast('Tout est remis sous tension');return}
   const r=e.target.closest('[data-rows]');
   if(r){const b=cur(),d=+r.dataset.rows;if(d<0&&b.rows<=1)return;if(d<0&&b.items.some(i=>i.row>=b.rows-1)){toast('La dernière rangée n’est pas vide');return}mutate(()=>{b.rows=Math.min(8,b.rows+d)});return}
   if(e.target.id==='delBoard'){const b=cur();if(DELB!==b.id){DELB=b.id;renderTabs();return}
     mutate(()=>{S.boards=S.boards.filter(x=>x.id!==b.id);S.boards.forEach(x=>x.items=x.items.filter(i=>!(i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id)));S.cur=principal(S).id;DELB=null});toast('Tableau supprimé')}
 });
-$('#boardbar').addEventListener('change',e=>{
+$('#boardbar').addEventListener('input',e=>{if(e.target.id!=='bName')return;if(!TYPING){HIST.push(JSON.stringify(S));TYPING=true}const b=cur();b.name=e.target.value;save();const t=document.querySelector(`[data-board="${b.id}"]`);if(t)t.textContent=b.name||'…'});
+$('#boardbar').addEventListener('change',e=>{if(e.target.id==='bName')TYPING=false;
   const b=cur();
-  if(e.target.id==='bName')mutate(()=>{b.name=e.target.value.trim()||b.name});
+  if(e.target.id==='bName'){b.name=e.target.value.trim()||b.name;commit()}
   if(e.target.id==='bEt')mutate(()=>{b.etage=e.target.value});
   if(e.target.id==='bMpr')mutate(()=>{b.mpr=+e.target.value;if(b.items.some(i=>i.col+W[i.t]>b.mpr)){optimise(S,b);toast('Tableau rangé pour tenir en '+b.mpr+' modules')}});
   if(e.target.id==='bBrand')mutate(()=>{S.brand=e.target.value;renderPalette()});
@@ -781,7 +825,7 @@ $('#pbody').addEventListener('click',e=>{
   if(act==='del'){delItem(it.id);return}
   if(act==='dup')dupItem(it.id);
 });
-const NUMF=new Set(['c.cal','c.sec','c.n','c.p','cal']);
+const NUMF=new Set(['c.cal','c.sec','c.n','c.p','c.len','cal']);
 let MSG=null;
 function setField(id,path,v){
   const f=findItem(id);if(!f)return;const {it}=f;MSG=null;
@@ -797,13 +841,26 @@ function setField(id,path,v){
   });
   if(MSG)toast(MSG);
 }
+let TYPING=false,TTI=null;
+function onFieldInput(e){
+  const el=e.target;if(el.type!=='text')return;
+  if(!TYPING){HIST.push(JSON.stringify(S));TYPING=true}
+  if(el.dataset.f){const f=findItem(el.dataset.id||SEL);if(!f)return;const [a,k]=el.dataset.f.split('.');if(a==='c')f.it.c[k]=el.value}
+  else if(el.dataset.p)S[el.dataset.p]=el.value;
+  else return;
+  save();clearTimeout(TTI);TTI=setTimeout(renderBoard,250);
+}
 function onFieldChange(e){
   const el=e.target;
+  if(el.type==='text'&&TYPING){TYPING=false;clearTimeout(TTI);render();return}
   if(el.dataset.stock!==undefined){mutate(()=>{S.stock[el.dataset.stock]=Math.max(0,+el.value||0)});return}
   if(el.dataset.p){mutate(()=>{let v=el.value;if(el.dataset.num)v=+v;if(el.dataset.p==='foudre')v=v==='1';S[el.dataset.p]=v});return}
   if(el.dataset.f)setField(el.dataset.id||SEL,el.dataset.f,el.value);
 }
 $('#pbody').addEventListener('change',onFieldChange);
+$('#pbody').addEventListener('input',onFieldInput);
+$('#clist').addEventListener('input',onFieldInput);
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches&&e.target.matches('input[type=text]'))e.target.blur()});
 $('#clist').addEventListener('change',onFieldChange);
 $('#clist').addEventListener('click',e=>{const d=e.target.closest('[data-pick]');if(!d)return;SEL=d.dataset.pick;PTAB='elem';render();const el=document.querySelector(`[data-item="${SEL}"]`);el&&el.scrollIntoView({block:'center',behavior:'smooth'})});
 $('#bTidy').addEventListener('click',()=>{mutate(()=>{tidy(S,cur())});toast('Rangé : chaque différentiel garde ses circuits, plus de fils inutiles')});
@@ -886,11 +943,11 @@ $('#bGen').addEventListener('click',()=>{
   <label class="field"><span>Clims (nombre)</span><input id="h-climN" type="number" min="0" max="6" value="${h.climN}"></label>
   <label class="field"><span>W absorbés / clim</span><input id="h-climW" type="number" min="0" step="50" value="${h.climW}"></label>
   </div>
-  <div class="checks">${ck('plaque','Plaque de cuisson')}${ck('four','Four')}${ck('ll','Lave-linge')}${ck('lv','Lave-vaisselle')}${ck('sl','Sèche-linge')}${ck('frigo','Réfrigérateur dédié')}${ck('congel','Congélateur')}${ck('ce','Chauffe-eau électrique')}${ck('pac','Pompe à chaleur')}${ck('vmc','VMC')}${ck('volets','Volets roulants')}${ck('ext','Extérieur / portail')}${ck('foudre','Zone foudre (parafoudre)')}${ck('div','Divisionnaire garage')}</div>
+  <div class="checks">${ck('plaque','Plaque de cuisson')}${ck('four','Four')}${ck('ll','Lave-linge')}${ck('lv','Lave-vaisselle')}${ck('sl','Sèche-linge')}${ck('chaudiere','Chaudière gaz')}${ck('frigo','Réfrigérateur dédié')}${ck('congel','Congélateur')}${ck('ce','Chauffe-eau électrique')}${ck('pac','Pompe à chaleur')}${ck('vmc','VMC')}${ck('volets','Volets roulants')}${ck('ext','Extérieur / portail')}${ck('foudre','Zone foudre (parafoudre)')}${ck('div','Divisionnaire garage')}</div>
   <div class="row-btns"><button class="btn primary" type="submit">Créer mon tableau</button><button class="btn" type="button" id="hEmpty">Partir d’un tableau vide</button><button class="btn" type="button" data-close>Fermer</button></div></form>`);
   $('#hf',m).addEventListener('submit',e=>{e.preventDefault();const g=id=>$('#h-'+id,m);
     const H={};['name','tarif','brand','ve','niveaux'].forEach(k=>H[k]=g(k).value);['surf','ch','sdb','chauf','climN','climW'].forEach(k=>H[k]=+g(k).value||0);
-    ['plaque','four','ll','lv','sl','frigo','congel','ce','pac','vmc','volets','ext','foudre','div'].forEach(k=>H[k]=g(k).checked);
+    ['chaudiere','plaque','four','ll','lv','sl','frigo','congel','ce','pac','vmc','volets','ext','foudre','div'].forEach(k=>H[k]=g(k).checked);
     mutate(()=>{S=generate(H);SEL=null});closeModal();renderPalette();toast('Tableau créé et vérifié')});
   $('#hEmpty',m).addEventListener('click',()=>{mutate(()=>{const P=generate({...h,name:'Nouveau projet'});const B=principal(P);B.items=[];B.rows=2;P.boards=[B];P.cur=B.id;S=P;SEL=null});closeModal();toast('Tableau vide : glisse un différentiel puis des disjoncteurs')});
 });
@@ -901,5 +958,33 @@ $('#bIO').addEventListener('click',()=>{
   $('#ioLoad',m).onclick=()=>{try{const P=JSON.parse($('#io',m).value);if(!P.boards||!P.boards.length)throw 0;mutate(()=>{S=P;S.stock=S.stock||{};SEL=null});closeModal();renderPalette();toast('Projet chargé')}catch(e){toast('Ce texte n’est pas un projet Tableau Malin valide')}};
 });
 
+function openRows(focus){
+  const b=cur();b.rowNames=b.rowNames||[];
+  const m=openModal(`<h2>Nommer les rangées</h2><p class="hint">Par exemple : Cuisine, Étage, Chauffage… Le nom s’affiche à droite de chaque rangée.</p>
+  ${Array.from({length:b.rows},(_,r)=>`<label class="field"><span>Rangée ${r+1}</span><input type="text" id="rn${r}" data-rowname="${r}" value="${esc(b.rowNames[r]||'')}" placeholder="Nom de la rangée"></label>`).join('')}
+  <div class="row-btns"><button class="btn primary" type="button" data-close>Terminé</button></div>`);
+  m.addEventListener('input',e=>{const r=e.target.dataset.rowname;if(r===undefined)return;b.rowNames[+r]=e.target.value;save();renderBoard()});
+  const f=$(`#rn${focus||0}`,m);f&&f.focus();
+}
+function openDivTemplates(){
+  const m=openModal(`<h2>Nouveau tableau divisionnaire</h2><p class="hint">Choisis un modèle : je crée le tableau avec ses circuits, son interrupteur de tête, ses différentiels, et son départ dans le tableau principal (branché sur l’arrivée). Tu pourras tout modifier.</p>
+  <div class="tpls">${Object.entries(DIVTPL).map(([k,t])=>`<button class="tpl" type="button" data-tpl="${k}"><span class="ic" aria-hidden="true">${t.ic}</span><b>${esc(t.name)}</b><span>${esc(t.desc)}</span><span>Départ ${t.cal} A${t.len?` · ${t.len} m`:''}</span></button>`).join('')}</div>
+  <div class="row-btns"><button class="btn" type="button" data-close>Annuler</button></div>`);
+  m.addEventListener('click',e=>{const t=e.target.closest('[data-tpl]');if(!t)return;let D;mutate(()=>{D=addDivBoard(S,t.dataset.tpl);S.cur=D.id;SEL=null});closeModal();toast(`Tableau « ${D.name} » créé, avec son départ dans le tableau principal`)});
+}
+function renderIntro(){
+  let done=false;try{done=localStorage.getItem('tm-intro')==='1'}catch(e){}
+  const el=$('#intro');if(done){el.hidden=true;return}
+  el.hidden=false;
+  el.innerHTML=`<h2>Bienvenue dans Tableau Malin</h2><ol>
+  <li>Glisse un appareil (four, clim, frigo…) sur une rangée : le bon disjoncteur et le bon câble sont choisis tout seuls.</li>
+  <li>Chaque couleur = un différentiel et les disjoncteurs à sa droite.</li>
+  <li>À droite, le contrôle te dit ce qui bloque le Consuel, avec des boutons pour corriger.</li>
+  <li>Touche un différentiel puis « Tester » pour voir ce qui se coupe.</li></ol>
+  <div class="row-btns" style="margin:0"><button class="btn primary small" type="button" id="introOk">C’est parti</button><button class="btn small" type="button" id="introGen">Créer depuis mon logement</button></div>`;
+  $('#introOk').onclick=()=>{try{localStorage.setItem('tm-intro','1')}catch(e){}el.hidden=true};
+  $('#introGen').onclick=()=>{try{localStorage.setItem('tm-intro','1')}catch(e){}el.hidden=true;$('#bGen').click()};
+}
+renderIntro();
 renderPalette();render();
 </script>

@@ -32,7 +32,9 @@ const CIRC={
   seche:{n:'Sèche-serviettes',ic:'🧺',ptab:true,sec:1.5,cal:16,p:1000,ks:1,lim:'selon la puissance'},
   plancher:{n:'Plancher chauffant',ic:'🔲',ptab:true,sec:2.5,cal:20,p:4000,ks:1,lim:'selon la puissance'},
   thermo:{n:'Ballon thermodynamique',ic:'💧',sec:2.5,cal:20,p:2500,ks:1,recA:true,lim:'1 appareil · contacteur si heures creuses'},
-  chaudiere:{n:'Chaudière / poêle à granulés',ic:'🪵',sec:1.5,cal:16,p:300,ks:1,lim:'circuit dédié'},
+  chaudiere:{n:'Chaudière gaz',ic:'🔥',sec:1.5,cal:16,p:200,ks:1,lim:'circuit dédié 16 A conseillé, même si elle est branchée sur une prise'},
+  poele:{n:'Poêle à granulés',ic:'🪵',sec:1.5,cal:16,p:400,ks:.5,lim:'circuit dédié conseillé'},
+  atelier:{n:'Machines d’atelier',ic:'🛠️',sec:2.5,cal:20,p:2500,ks:.4,lim:'circuit dédié aux machines (scie, compresseur…)'},
   piscine:{n:'Piscine (filtration)',ic:'🏊',sec:2.5,cal:20,p:1500,ks:1,recA:true,lim:'circuit dédié, 30 mA obligatoire'},
   spa:{n:'Spa / jacuzzi',ic:'🛁',sec:6,cal:32,p:6000,ks:1,recA:true,lim:'circuit dédié, section selon la notice'},
   portail:{n:'Portail / porte de garage',ic:'🚪',sec:1.5,cal:16,p:400,ks:.3,lim:'circuit dédié conseillé'},
@@ -57,7 +59,7 @@ const BR={
   schneider:{name:'Schneider Electric',gD:'Resi9 XE',gI:'Resi9 XE',gC:'Resi9',short:'Resi9',lever:'#22302a',stripe:'#3a9a5b'},
   legrand:{name:'Legrand',gD:'DX³',gI:'DX³-ID',gC:'Drivia',short:'DX³',lever:'#454c5a',stripe:'#98a1b0'}
 };
-const TY={eclairage:'AC',prises:'AC',cuisine:'AC',plaque:'A!',four:'AC',ll:'A!',lv:'A',sl:'A',congel:'A',ce:'AC',chauffage:'AC',clim:'A',pac:'A',vmc:'AC',volets:'AC',irve:'A!',prv:'A!',ext:'AC',com:'AC',autre:'AC',div:'-',frigo:'A',cave:'AC',mo:'AC',hotte:'AC',cuisiniere:'A!',seche:'AC',plancher:'AC',thermo:'A',chaudiere:'AC',piscine:'A',spa:'A',portail:'AC',alarme:'AC',aspi:'AC',relevage:'A'};
+const TY={eclairage:'AC',prises:'AC',cuisine:'AC',plaque:'A!',four:'AC',ll:'A!',lv:'A',sl:'A',congel:'A',ce:'AC',chauffage:'AC',clim:'A',pac:'A',vmc:'AC',volets:'AC',irve:'A!',prv:'A!',ext:'AC',com:'AC',autre:'AC',div:'-',frigo:'A',cave:'AC',mo:'AC',hotte:'AC',cuisiniere:'A!',seche:'AC',plancher:'AC',thermo:'A',chaudiere:'AC',poele:'AC',atelier:'AC',piscine:'A',spa:'A',portail:'AC',alarme:'AC',aspi:'AC',relevage:'A'};
 const TYWHY={
   plaque:'L’électronique de l’induction peut créer des fuites à composante continue. Un type AC risque de ne pas les voir et de ne pas couper.',
   ll:'Le moteur du lave-linge est piloté par électronique : fuites à composante continue possibles.',
@@ -79,8 +81,9 @@ const GROUPS=[
   ['Pièces : lumière et prises',['eclairage','prises','volets','com']],
   ['Cuisine',['cuisine','plaque','four','cuisiniere','lv','frigo','congel','cave','mo','hotte']],
   ['Buanderie',['ll','sl']],
-  ['Chauffage, clim, eau chaude',['chauffage','seche','plancher','clim','pac','ce','thermo','chaudiere','vmc']],
-  ['Voiture et extérieur',['irve','prv','ext','portail','piscine','spa','relevage']],
+  ['Chauffage, clim, eau chaude',['chauffage','seche','plancher','clim','pac','ce','thermo','chaudiere','poele','vmc']],
+  ['Voiture et piscine',['irve','prv','piscine','spa','relevage']],
+  ['Atelier, garage, extérieur',['atelier','ext','portail']],
   ['Divers',['alarme','aspi','autre']]];
 const IDGUIDE=[
   ['Éclairage, prises, chauffage électrique, chauffe-eau, four, VMC, volets','AC','Courant alternatif classique. Le type AC suffit, le type A convient aussi.'],
@@ -90,6 +93,10 @@ const IDGUIDE=[
   ['Lave-vaisselle, sèche-linge, congélateur récents','A conseillé',TYWHY.lv],
   ['Appareils triphasés à variateur','B','Fuites en courant continu lisse : seul le type B les détecte.']];
 const KEY='tableau-malin-v1';
+const RHO=0.0225; // résistivité du cuivre en service (Ω·mm²/m)
+/* Chute de tension en % (monophasé, aller-retour) */
+function vdrop(L,I,sec){return L>0&&sec>0?2*RHO*L*I/sec/230*100:0}
+function circI(P,it){if(it.c.k==='div'){const b=boardOf(P,it.c.board);return Math.max(1,b?boardLoad(P,b)/230:1)}return Math.max(1,(+it.c.p||0)/230)}
 const SIMUL=0.7; // simultanéité globale du logement pour l'abonnement
 
 /* ================= Outils ================= */
@@ -126,7 +133,7 @@ function generate(h){
   pc.push(['couloir',1]);
   byFloor(pc,10,g=>mkCirc('prises',{label:'PC '+g.rooms.join(', '),n:g.n}));
   add(mkCirc('cuisine',{label:'PC plan de travail',n:6,room:'cuisine'}));
-  [['plaque','Plaque'],['four','Four'],['ll','Lave-linge'],['lv','Lave-vaisselle'],['sl','Sèche-linge'],['frigo','Réfrigérateur'],['congel','Congélateur'],['ce','Chauffe-eau']].forEach(([k,l])=>{if(h[k])add(mkCirc(k,{label:l}))});
+  [['chaudiere','Chaudière gaz'],['plaque','Plaque'],['four','Four'],['ll','Lave-linge'],['lv','Lave-vaisselle'],['sl','Sèche-linge'],['frigo','Réfrigérateur'],['congel','Congélateur'],['ce','Chauffe-eau']].forEach(([k,l])=>{if(h[k])add(mkCirc(k,{label:l}))});
   if(+h.chauf>0){const n=Math.ceil(+h.chauf/3500);for(let i=0;i<n;i++)add(mkCirc('chauffage',{label:`Chauffage ${i+1}`,p:Math.round(+h.chauf/n)}))}
   for(let i=0;i<(+h.climN||0);i++)add(mkCirc('clim',{label:`Clim ${i+1}`,p:+h.climW||1200,etage:up&&i>0?'Étage 1':'RDC'}));
   if(h.pac)add(mkCirc('pac',{label:'Pompe à chaleur',p:+h.pacW||3500}));
@@ -297,6 +304,9 @@ function analyse(P){
           if(idCirc[id.id].filter(x=>x.t==='disj'||x.t==='prise').length>1)add('err',`${nm} doit avoir son propre différentiel 30 mA.`,b,it,'Chaque point de recharge est protégé individuellement par un différentiel 30 mA.')}
         if(sp.recA&&id.type==='AC')add('warn',`${nm} est sur ${idName(b,id)} (type AC). Un type A est conseillé pour cet appareil. Pas bloquant.`,b,it,(TYWHY[c.k]||'Appareil à variateur : le type AC voit mal ses fuites.')+PEIGNE,fixA(false));
       }
+      if(+c.len>0){const lim=c.k==='eclairage'?3:c.k==='div'?2:5, dv=vdrop(+c.len,circI(P,it),c.sec);
+        if(dv>lim){const s2=SECS.find(x=>x>=c.sec&&vdrop(+c.len,circI(P,it),x)<=lim&&MAXCAL[x]>=c.cal);
+          add('warn',`${nm} : chute de tension ${dv.toFixed(1).replace('.',',')} % sur ${c.len} m (maximum conseillé ${lim} %).`,b,it,`Plus le câble est long, plus la tension baisse au bout : les appareils marchent mal et le câble chauffe. Limites : 3 % pour l’éclairage, 5 % pour le reste${c.k==='div'?', et environ 2 % pour l’alimentation d’un divisionnaire afin de laisser de la marge à ses circuits':''}.`,s2?[{label:`Passer en ${fmt(s2)} mm²`,op:{k:'field',item:it.id,key:'sec',v:s2}}]:[])}}
       if(c.k==='ce'&&P.tarif==='hc'&&!b.items.some(i=>i.t==='cont'))add('warn',`${nm} : ajoute un contacteur heures creuses.`,b,it,'Avec un abonnement heures creuses, le chauffe-eau est commandé par un contacteur jour/nuit.');
     }
     ids.forEach(d=>{
@@ -312,6 +322,7 @@ function analyse(P){
     const tot=b.rows*b.mpr, free=(tot-usedMods(b))/tot;
     if(free<0.2)add('err',`${b.name} : réserve de ${Math.round(free*100)} % (20 % minimum).`,b,null,'Le tableau garde au moins 20 % de place libre pour les ajouts futurs. Ajoute une rangée.');
     if(b.kind==='div'){
+      if(['Annexe','Extérieur'].includes(b.etage))add('info',`${b.name} est dans un bâtiment séparé : câble enterré.`,b,null,'Câble U1000 R2V (ou AR2V) dans une gaine TPC rouge, à 50 cm de profondeur minimum, avec un grillage avertisseur rouge 20 cm au-dessus. Pense à la terre du bâtiment et indique la longueur du câble sur le départ pour vérifier la chute de tension.');
       if(!b.items.some(i=>i.t==='sect'))add('warn',`${b.name} : ajoute un interrupteur de tête.`,b,null,'Un tableau divisionnaire a un dispositif de coupure en tête pour couper tout le tableau sur place.');
       if(!prin.items.some(i=>i.t==='disj'&&i.c.k==='div'&&i.c.board===b.id))add('err',`${b.name} n’est alimenté par aucun départ du tableau principal.`,b,null,'Ajoute un disjoncteur « Départ tableau divisionnaire » dans le tableau principal.');
     }
@@ -328,7 +339,7 @@ function analyse(P){
     if(i.c.k!=='eclairage'&&i.c.k!=='prises')return;
     const f=floors[i.c.etage]||(floors[i.c.etage]={e:new Set(),p:new Set(),ne:0,b});const k=b.id+':'+(fm[i.id].by||'none');
     if(i.c.k==='eclairage'){f.e.add(k);f.ne++}else f.p.add(k);})});
-  Object.entries(floors).forEach(([et,f])=>{
+  Object.entries(floors).filter(([et])=>!['Annexe','Extérieur','Garage'].includes(et)).forEach(([et,f])=>{
     if(f.e.size===1&&f.p.size===1&&[...f.e][0]===[...f.p][0])add('warn',`${et} : l’éclairage et les prises sont tous sur le même différentiel.`,f.b,null,`Si ce différentiel saute, plus de lumière ni de prise à cet étage (${et}). Mets l’éclairage et les prises de l’étage sur deux différentiels différents.`);
     else if(f.ne>=2&&f.e.size===1)add('info',`${et} : tous les circuits d’éclairage sont sur le même différentiel.`,f.b,null,'Répartir l’éclairage d’un même étage sur deux différentiels évite le noir complet en cas de défaut.');
   });
@@ -339,8 +350,33 @@ function analyse(P){
   if(!allIds.some(d=>d.type!=='AC'))add('err','Il faut au moins un différentiel type A (ou F).',prin,null,'Le type A protège la plaque de cuisson et le lave-linge.');
   if(P.foudre&&!prin.items.some(i=>i.t==='para'))add('err','Parafoudre obligatoire dans ta zone (ou bâtiment avec paratonnerre).',prin,null,'Le parafoudre se place en tête du tableau principal, avec son dispositif de déconnexion.');
   const pf=demand(P);
-  if(pf>P.kva*1000)add('warn',`Puissance estimée ${kw(pf)}, plus que l’abonnement ${P.kva} kVA.`,prin,null,`Passe à ${suggestKva(P)} kVA ou délestage. Le disjoncteur de branchement (AGCP) risque de couper.`);
+  if(pf>P.kva*1000)add('warn',`Puissance estimée ${kw(pf)}, plus que l’abonnement ${P.kva} kVA.`,prin,null,`Passe à ${suggestKva(P)} kVA ou installe un délestage. Sinon, le disjoncteur de branchement (AGCP) risque de couper.`,[{label:`Passer à ${suggestKva(P)} kVA`,op:{k:'proj',key:'kva',v:suggestKva(P)}}]);
   return out;
+}
+
+/* Modèles de tableaux divisionnaires */
+const DIVTPL={
+  atelier:{name:'Atelier',ic:'🛠️',etage:'Annexe',cal:32,len:25,desc:'Bâtiment séparé : lumière, prises, machines.',items:[['eclairage',{label:'Écl. atelier',n:3,p:300}],['prises',{label:'PC atelier',n:6}],['atelier',{label:'Machines atelier'}],['ext',{label:'Écl. extérieur'}]]},
+  garage:{name:'Garage',ic:'🚗',etage:'Garage',cal:32,len:10,desc:'Lumière, prises, porte motorisée.',items:[['eclairage',{label:'Écl. garage',n:3,p:300}],['prises',{label:'PC garage',n:4}],['portail',{label:'Porte de garage'}]]},
+  etage:{name:'Étage',ic:'🏠',etage:'Étage 1',cal:40,len:15,desc:'Chambres et salle de bain à l’étage.',items:[['eclairage',{label:'Écl. chambres',n:5,p:400}],['eclairage',{label:'Écl. SdB, couloir',n:4,p:300}],['prises',{label:'PC chambres',n:9}],['prises',{label:'PC SdB, couloir',n:3}],['volets',{label:'Volets étage'}],['seche',{label:'Sèche-serviettes',p:750}]]},
+  abri:{name:'Abri de jardin',ic:'🌳',etage:'Extérieur',cal:20,len:30,desc:'Petit abri : une lumière, quelques prises.',items:[['eclairage',{label:'Écl. abri',n:2,p:150}],['prises',{label:'PC abri',n:3}]]},
+  piscine:{name:'Piscine',ic:'🏊',etage:'Extérieur',cal:32,len:20,desc:'Local technique : filtration, éclairage.',items:[['piscine',{label:'Filtration'}],['eclairage',{label:'Projecteurs (TBTS)',n:2,p:100}],['prises',{label:'PC local technique',n:2}]]},
+  vide:{name:'Divisionnaire',ic:'🗄️',etage:'',cal:32,len:0,desc:'Tableau vide à remplir toi-même.',items:[]}
+};
+function addDivBoard(P,key){
+  const T=DIVTPL[key]||DIVTPL.vide, n=P.boards.filter(b=>b.kind==='div'&&b.name.startsWith(T.name)).length;
+  const D=newBoard(T.name+(n?' '+(n+1):''),'div');D.etage=T.etage;
+  D.items.push(mkItem('sect'));T.items.forEach(([k,o])=>{const it=mkCirc(k,{...o,etage:T.etage});D.items.push(it)});
+  P.boards.push(D);optimise(P,D);
+  if(!D.items.some(i=>i.t==='id')){D.items.push(Object.assign(mkItem('id',{cal:40,type:'A'}),{row:0,col:2}))}
+  const r=DIVTABLE.find(x=>x[0]>=T.cal)||[T.cal,T.cal<=20?2.5:6];
+  const f=mkCirc('div',{label:'Départ '+D.name});f.c.board=D.id;f.feed='head';f.c.cal=r[0];f.c.sec=r[1];if(T.cal===20){f.c.cal=20;f.c.sec=2.5}f.c.len=T.len;
+  const B=principal(P), w=1;let spot=null;
+  for(let rr=0;rr<B.rows&&!spot;rr++)for(let c=0;c+w<=B.mpr&&!spot;c++)if(!B.items.some(i=>i.row===rr&&c<i.col+W[i.t]&&i.col<c+w))spot=[rr,c];
+  if(!spot){B.rows++;spot=[B.rows-1,0]}
+  f.row=spot[0];f.col=spot[1];B.items.push(f);
+  const s2=SECS.find(x=>x>=f.c.sec&&vdrop(f.c.len,circI(P,f),x)<=2&&MAXCAL[x]>=f.c.cal);if(s2)f.c.sec=s2;
+  return D;
 }
 
 /* Applique une correction proposée par analyse() */
@@ -349,7 +385,8 @@ function applyFix(P,op){
   if(op.k==='feed'){const it=find(op.item);if(it)it.feed=op.to}
   if(op.k==='idtype'){const d=find(op.id);if(d)d.type=op.type}
   if(op.k==='proj')P[op.key]=op.v;
+  if(op.k==='field'){const it=find(op.item);if(it&&it.c)it.c[op.key]=op.v}
 }
-if(typeof module!=='undefined')module.exports={ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
+if(typeof module!=='undefined')module.exports={DIVTPL,addDivBoard,vdrop,ETAGES,ARRMAX,arrSec,GROUPS,applyFix,MOD,MOD_H,ROW_H,W,MAXCAL,SECS,CALS,PTABLE,DIVTABLE,KVA,CIRC,TY,IDGUIDE,BR,
   newBoard,mkCirc,mkItem,generate,DEFAULT_HOME,loadOf,boardLoad,installed,principal,demand,suggestKva,recommend,feedMap,
   sortedIds,idName,usedMods,itemName,optimise,layout,tidy,attachDiv,analyse,boardOf,fmt};

@@ -173,3 +173,28 @@ test('conseil si éclairage et prises d’un étage sont sur le même différent
   const pc = disj('prises', { label: 'P', n: 4, etage: 'Étage 1' });
   assert.ok(has(projet([e, pc]).P, /Étage 1 : l’éclairage et les prises/));
 });
+
+test('modèles de divisionnaire : atelier extérieur conforme et branché sur l’arrivée', () => {
+  for (const k of Object.keys(R.DIVTPL)) {
+    const P = R.generate(R.DEFAULT_HOME);
+    const D = R.addDivBoard(P, k);
+    const f = R.principal(P).items.find(i => i.t === 'disj' && i.c.k === 'div' && i.c.board === D.id);
+    assert.equal(f.feed, 'head', k);
+    assert.deepEqual(errs(P).map(e => e.msg), [], k);
+  }
+});
+
+test('chute de tension : un long câble trop fin est signalé, avec la bonne section', () => {
+  assert.ok(Math.abs(R.vdrop(30, 16, 2.5) - 3.76) < 0.05);
+  const d = disj('prises', { label: 'PC fond du jardin', n: 4, p: 3000 }); d.c.len = 60;
+  const { P } = projet([d]);
+  const w = R.analyse(P).find(i => /chute de tension/.test(i.msg));
+  assert.equal(w.lvl, 'warn');
+  R.applyFix(P, w.fix[0].op);
+  assert.ok(!has(P, /chute de tension/));
+});
+
+test('chaudière gaz : circuit 16 A dédié', () => {
+  assert.equal(R.CIRC.chaudiere.n, 'Chaudière gaz');
+  assert.equal(R.CIRC.chaudiere.cal, 16);
+});
